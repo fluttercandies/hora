@@ -1,0 +1,21 @@
+# Development scripts and tools
+scripts/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.iml
+
+# Build and cache files
+.dart_tool/
+build/
+
+# Test files (optional - pub.dev recommends including tests)
+# test/
+
+# CI/CD files
+.github/
+
+# OS generated files
+.DS_Store
+Thumbs.db

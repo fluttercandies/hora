@@ -1,0 +1,32 @@
+name: hora
+description: A lightweight, immutable date time library for Dart. Inspired by dayjs with comprehensive features, plugins, and i18n support.
+version: 1.0.0
+homepage: https://github.com/fluttercandies/hora
+repository: https://github.com/fluttercandies/hora
+issue_tracker: https://github.com/fluttercandies/hora/issues
+documentation: https://github.com/fluttercandies/hora#readme
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  meta: ^1.11.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0
+
+platforms:
+  android:
+  ios:
+  linux:
+  macos:
+  web:
+  windows:
+
+topics:
+  - datetime
+  - date
+  - time
+  - dayjs
+  - timezone
