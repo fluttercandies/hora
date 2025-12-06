@@ -145,13 +145,17 @@ void main() {
       );
 
       expect(
-          range.contains(
-              Hora.of(year: 2024, month: 3, day: 15, hour: 12, utc: true),),
-          isTrue,);
+        range.contains(
+          Hora.of(year: 2024, month: 3, day: 15, hour: 12, utc: true),
+        ),
+        isTrue,
+      );
       expect(
-          range.contains(
-              Hora.of(year: 2024, month: 3, day: 15, hour: 8, utc: true),),
-          isFalse,);
+        range.contains(
+          Hora.of(year: 2024, month: 3, day: 15, hour: 8, utc: true),
+        ),
+        isFalse,
+      );
     });
 
     test('inTimezone converts range', () {

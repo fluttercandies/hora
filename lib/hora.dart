@@ -31,25 +31,10 @@
 /// print(now.isBefore(tomorrow)); // true
 /// print(now.isAfter(lastMonth)); // true
 /// ```
-///
-/// ## Plugins
-///
-/// Enable additional features with plugins:
-///
-/// ```dart
-/// import 'package:hora/hora.dart';
-/// import 'package:hora/plugins/relative_time.dart';
-///
-/// void main() {
-///   Hora.use(relativeTimePlugin);
-///   print(Hora().subtract(3, TemporalUnit.day).fromNow()); // 3 days ago
-/// }
-/// ```
 library;
 
 export 'src/duration.dart';
 export 'src/extensions.dart';
 export 'src/hora.dart';
 export 'src/locale.dart';
-export 'src/plugin.dart';
 export 'src/units.dart';

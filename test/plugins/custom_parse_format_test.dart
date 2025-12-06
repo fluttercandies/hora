@@ -65,7 +65,9 @@ void main() {
 
       test('returns null for invalid input in strict mode', () {
         expect(
-            HoraParser.tryParse('invalid', 'YYYY-MM-DD', strict: true), isNull,);
+          HoraParser.tryParse('invalid', 'YYYY-MM-DD', strict: true),
+          isNull,
+        );
       });
     });
 

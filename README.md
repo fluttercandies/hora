@@ -367,31 +367,6 @@ final h2 = h.withLocale(const HoraLocaleZhCn());
 print(h2.format('MMMM')); // 十二月
 ```
 
-### Dynamic Locale Registry
-
-For applications that need to switch locales by code string (e.g., from user settings):
-
-```dart
-import 'package:hora/hora.dart';
-import 'package:hora/src/locales/ja.dart';
-import 'package:hora/src/locales/ko.dart';
-
-void main() {
-  // Register locales you need
-  HoraLocales.register(const HoraLocaleJa());
-  HoraLocales.register(const HoraLocaleKo());
-
-  // Look up by code
-  final userLocaleCode = getUserPreferredLocale(); // e.g., 'ja'
-  final locale = HoraLocales.get(userLocaleCode);
-  
-  if (locale != null) {
-    final h = Hora.now(locale: locale);
-    print(h.format('LLLL'));
-  }
-}
-```
-
 ### Creating Custom Locales
 
 ```dart
@@ -597,34 +572,34 @@ h.setByKey('day', 20)
 
 Hora includes many more plugins:
 
-| Plugin | Description |
-|--------|-------------|
-| `advancedFormat` | Extended format tokens (`Q`, `Do`, `k`, etc.) |
-| `buddhistEra` | Buddhist Era calendar support |
-| `businessDay` | Business day calculations |
-| `calendar` | Calendar-style date formatting |
-| `customParseFormat` | Parse dates with custom format strings |
-| `duration` | Advanced duration handling |
-| `fiscalYear` | Fiscal year calculations |
-| `localeData` | Access locale data programmatically |
-| `minMax` | Find min/max in date collections |
-| `precision` | Precision-aware date comparisons |
-| `recurrence` | Recurring date patterns |
-| `relativeTime` | Human-readable relative time |
-| `timezone` | Timezone support |
-| `weekOfYear` | Week of year calculations |
+| Plugin              | Description                                   |
+|---------------------|-----------------------------------------------|
+| `advancedFormat`    | Extended format tokens (`Q`, `Do`, `k`, etc.) |
+| `buddhistEra`       | Buddhist Era calendar support                 |
+| `businessDay`       | Business day calculations                     |
+| `calendar`          | Calendar-style date formatting                |
+| `customParseFormat` | Parse dates with custom format strings        |
+| `duration`          | Advanced duration handling                    |
+| `fiscalYear`        | Fiscal year calculations                      |
+| `localeData`        | Access locale data programmatically           |
+| `minMax`            | Find min/max in date collections              |
+| `precision`         | Precision-aware date comparisons              |
+| `recurrence`        | Recurring date patterns                       |
+| `relativeTime`      | Human-readable relative time                  |
+| `timezone`          | Timezone support                              |
+| `weekOfYear`        | Week of year calculations                     |
 
 ## Comparison with Other Libraries
 
-| Feature | Hora | Day.js | moment.js |
-|---------|------|--------|-----------|
-| Immutable | ✅ | ✅ | ❌ |
-| Type-safe | ✅ (Dart) | ❌ | ❌ |
-| Tree-shakable | ✅ | ✅ | ❌ |
-| Null-safe | ✅ | N/A | N/A |
-| Plugin system | ✅ | ✅ | ✅ |
-| Locale support | ✅ | ✅ | ✅ |
-| Calendar durations | ✅ | Plugin | ✅ |
+| Feature            | Hora                | Day.js | moment.js |
+|--------------------|---------------------|--------|-----------|
+| Immutable          | ✅                   | ✅      | ❌         |
+| Type-safe          | ✅ (Dart)            | ❌      | ❌         |
+| Tree-shakable      | ✅                   | ✅      | ❌         |
+| Null-safe          | ✅                   | N/A    | N/A       |
+| Plugin system      | ✅ (dart extensions) | ✅      | ✅         |
+| Locale support     | ✅                   | ✅      | ✅         |
+| Calendar durations | ✅                   | Plugin | ✅         |
 
 ## Contributing
 

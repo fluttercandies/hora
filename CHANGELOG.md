@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-12-06
+
+### Fixed
+- **Documentation consistency**: Updated README and example files to match actual implementation
+- **API examples**: Fixed all documentation inconsistencies between README and source code
+- **Plugin imports**: Clarified plugin import paths and usage examples
+- **Extension methods**: Corrected extension method names and documentation throughout
+
+### Improved
+- **Documentation clarity**: Better distinction between core features and plugin features
+- **Example accuracy**: All example code now matches actual implementation
+- **Locale documentation**: Clarified locale loading mechanism and tree-shaking support
+- **Simplified API**: Removed dynamic locale registry in favor of direct locale usage for better tree-shaking
+- **Example enhancements**: Added comprehensive formatting examples with multiple locales
+- **Code formatting**: Improved code formatting across test files for better readability
+
 ## [1.0.1] - 2025-12-06
 
 ### Fixed
@@ -88,11 +104,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **HoraMinMaxExt**: `earliest`, `latest` on `Iterable<Hora>`
 - **HoraRangeExt**: `rangeTo()`, `take()`
 - **HoraBuilderExt**: `atStartOfDay()`, `atEndOfDay()`, `atNoon()`, `atMidnight()`, `atYear()`, `atMonth()`, `atDay()`, `atHour()`, `atMinute()`, `atSecond()`
-
-#### Plugin System
-- **HoraPlugin abstract class**: Base for extending Hora functionality
-- **HoraPluginRegistry**: Register and invoke custom methods
-- **Hora.use()**: Register plugins globally
 
 #### Formatting
 - **HoraFormatter**: Comprehensive date formatting

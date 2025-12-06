@@ -367,31 +367,6 @@ final h2 = h.withLocale(const HoraLocaleZhCn());
 print(h2.format('MMMM')); // 十二月
 ```
 
-### 动态语言环境注册
-
-对于需要通过代码字符串切换语言环境的应用（例如从用户设置）：
-
-```dart
-import 'package:hora/hora.dart';
-import 'package:hora/src/locales/ja.dart';
-import 'package:hora/src/locales/ko.dart';
-
-void main() {
-  // 注册需要的语言环境
-  HoraLocales.register(const HoraLocaleJa());
-  HoraLocales.register(const HoraLocaleKo());
-
-  // 按代码查找
-  final userLocaleCode = getUserPreferredLocale(); // 例如 'ja'
-  final locale = HoraLocales.get(userLocaleCode);
-  
-  if (locale != null) {
-    final h = Hora.now(locale: locale);
-    print(h.format('LLLL'));
-  }
-}
-```
-
 ### 创建自定义语言环境
 
 ```dart
@@ -596,34 +571,34 @@ h.setByKey('day', 20)
 
 Hora 还包含更多插件：
 
-| 插件 | 描述 |
-|------|------|
-| `advancedFormat` | 扩展格式令牌（`Q`、`Do`、`k` 等） |
-| `buddhistEra` | 佛历支持 |
-| `businessDay` | 工作日计算 |
-| `calendar` | 日历样式日期格式化 |
-| `customParseFormat` | 使用自定义格式字符串解析日期 |
-| `duration` | 高级时长处理 |
-| `fiscalYear` | 财年计算 |
-| `localeData` | 以编程方式访问语言环境数据 |
-| `minMax` | 在日期集合中查找最小/最大值 |
-| `precision` | 精度感知的日期比较 |
-| `recurrence` | 重复日期模式 |
-| `relativeTime` | 人类可读的相对时间 |
-| `timezone` | 时区支持 |
-| `weekOfYear` | 年周计算 |
+| 插件                  | 描述                     |
+|---------------------|------------------------|
+| `advancedFormat`    | 扩展格式令牌（`Q`、`Do`、`k` 等） |
+| `buddhistEra`       | 佛历支持                   |
+| `businessDay`       | 工作日计算                  |
+| `calendar`          | 日历样式日期格式化              |
+| `customParseFormat` | 使用自定义格式字符串解析日期         |
+| `duration`          | 高级时长处理                 |
+| `fiscalYear`        | 财年计算                   |
+| `localeData`        | 以编程方式访问语言环境数据          |
+| `minMax`            | 在日期集合中查找最小/最大值         |
+| `precision`         | 精度感知的日期比较              |
+| `recurrence`        | 重复日期模式                 |
+| `relativeTime`      | 人类可读的相对时间              |
+| `timezone`          | 时区支持                   |
+| `weekOfYear`        | 年周计算                   |
 
 ## 与其他库的比较
 
-| 特性 | Hora | Day.js | moment.js |
-|------|------|--------|-----------|
-| 不可变 | ✅ | ✅ | ❌ |
-| 类型安全 | ✅（Dart） | ❌ | ❌ |
-| 可摇树优化 | ✅ | ✅ | ❌ |
-| 空安全 | ✅ | 不适用 | 不适用 |
-| 插件系统 | ✅ | ✅ | ✅ |
-| 本地化支持 | ✅ | ✅ | ✅ |
-| 日历时长 | ✅ | 插件 | ✅ |
+| 特性    | Hora                | Day.js | moment.js |
+|-------|---------------------|--------|-----------|
+| 不可变   | ✅                   | ✅      | ❌         |
+| 类型安全  | ✅（Dart）             | ❌      | ❌         |
+| 可摇树优化 | ✅                   | ✅      | ❌         |
+| 空安全   | ✅                   | 不适用    | 不适用       |
+| 插件系统  | ✅ (dart extensions) | ✅      | ✅         |
+| 本地化支持 | ✅                   | ✅      | ✅         |
+| 日历时长  | ✅                   | 插件     | ✅         |
 
 ## 贡献
 

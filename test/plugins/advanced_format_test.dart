@@ -8,15 +8,25 @@ void main() {
       test('formats ordinal day (Do)', () {
         expect(Hora.of(year: 2024, month: 3).advancedFormat('Do'), '1st');
         expect(
-            Hora.of(year: 2024, month: 3, day: 2).advancedFormat('Do'), '2nd',);
+          Hora.of(year: 2024, month: 3, day: 2).advancedFormat('Do'),
+          '2nd',
+        );
         expect(
-            Hora.of(year: 2024, month: 3, day: 3).advancedFormat('Do'), '3rd',);
+          Hora.of(year: 2024, month: 3, day: 3).advancedFormat('Do'),
+          '3rd',
+        );
         expect(
-            Hora.of(year: 2024, month: 3, day: 4).advancedFormat('Do'), '4th',);
-        expect(Hora.of(year: 2024, month: 3, day: 11).advancedFormat('Do'),
-            '11th',);
-        expect(Hora.of(year: 2024, month: 3, day: 21).advancedFormat('Do'),
-            '21st',);
+          Hora.of(year: 2024, month: 3, day: 4).advancedFormat('Do'),
+          '4th',
+        );
+        expect(
+          Hora.of(year: 2024, month: 3, day: 11).advancedFormat('Do'),
+          '11th',
+        );
+        expect(
+          Hora.of(year: 2024, month: 3, day: 21).advancedFormat('Do'),
+          '21st',
+        );
       });
 
       test('formats quarter (Q)', () {
@@ -71,10 +81,14 @@ void main() {
         expect(Hora.of(year: 2024).dayOfYear, 1);
         expect(Hora.of(year: 2024, day: 31).dayOfYear, 31);
         expect(Hora.of(year: 2024, month: 2).dayOfYear, 32);
-        expect(Hora.of(year: 2024, month: 12, day: 31).dayOfYear,
-            366,); // leap year
         expect(
-            Hora.of(year: 2023, month: 12, day: 31).dayOfYear, 365,); // non-leap
+          Hora.of(year: 2024, month: 12, day: 31).dayOfYear,
+          366,
+        ); // leap year
+        expect(
+          Hora.of(year: 2023, month: 12, day: 31).dayOfYear,
+          365,
+        ); // non-leap
       });
     });
   });

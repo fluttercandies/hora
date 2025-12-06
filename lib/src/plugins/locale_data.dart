@@ -137,18 +137,6 @@ extension LocaleDataExt on Hora {
 
   /// Gets the meridiem (AM/PM) for the current time in lowercase.
   String get meridiemLower => locale.meridiem(hour, minute, lowercase: true);
-
-  /// Gets all registered locale codes (from HoraLocales registry).
-  static Iterable<String> get registeredLocaleCodes => HoraLocales.codes;
-
-  /// Gets the data for a specific locale (from HoraLocales registry).
-  ///
-  /// Note: The locale must be registered with [HoraLocales.register] first.
-  static LocaleData? dataFor(String localeCode) {
-    final locale = HoraLocales.get(localeCode);
-    if (locale == null) return null;
-    return LocaleData._(locale);
-  }
 }
 
 /// Extension providing locale iteration utilities.

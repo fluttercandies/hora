@@ -54,7 +54,9 @@ void main() {
     'in 3 years': now.add(3, TemporalUnit.year),
   };
 
-  futureTimes.forEach((description, time) => print('$description: ${time.fromNow()}'));
+  for (final entry in futureTimes.entries) {
+    print('${entry.key}: ${entry.value.fromNow()}');
+  }
 
   // Relative to/from other dates
   print('\nRelative to other dates:');
@@ -83,9 +85,15 @@ void main() {
   // Without suffix
   print('\nWithout suffix:');
   print(
-      '3 days ago (without suffix): ${now.subtract(3, TemporalUnit.day).fromNow(withoutSuffix: true)}',);
+    '3 days ago (without suffix): ${now.subtract(3, TemporalUnit.day).fromNow(
+          withoutSuffix: true,
+        )}',
+  );
   print(
-      'in 3 days (without suffix): ${now.add(3, TemporalUnit.day).fromNow(withoutSuffix: true)}',);
+    'in 3 days (without suffix): ${now.add(3, TemporalUnit.day).fromNow(
+          withoutSuffix: true,
+        )}',
+  );
 
   // With different locales
   print('\nRelative time with different locales:');

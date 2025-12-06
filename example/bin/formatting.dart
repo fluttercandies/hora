@@ -76,7 +76,8 @@ void main() {
   print('\nEscape characters:');
   print('Literal text: ${date.format('[On] MMMM Do [at] HH:mm')}');
   print(
-      'Multiple literals: ${date.format('[The date is] YYYY-MM-DD [and time is] HH:mm:ss')}',);
+    'Multiple literals: ${date.format('[The date is] YYYY-MM-DD [and time is] HH:mm:ss')}',
+  );
 
   // Format with different locales
   print('\nFormat with different locales:');

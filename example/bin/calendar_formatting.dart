@@ -150,9 +150,11 @@ void main() {
 
   // First/last weekday
   print(
-      'First Monday: ${now.firstWeekdayInMonth(DateTime.monday).format("YYYY-MM-DD")}',);
+    'First Monday: ${now.firstWeekdayInMonth(DateTime.monday).format("YYYY-MM-DD")}',
+  );
   print(
-      'Last Friday: ${now.lastWeekdayInMonth(DateTime.friday).format("YYYY-MM-DD")}',);
+    'Last Friday: ${now.lastWeekdayInMonth(DateTime.friday).format("YYYY-MM-DD")}',
+  );
 
   // Nth weekday
   final secondTuesday = now.nthWeekdayInMonth(DateTime.tuesday, 2);

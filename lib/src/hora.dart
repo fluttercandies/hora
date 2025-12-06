@@ -1,7 +1,6 @@
 import 'package:meta/meta.dart';
 
 import 'locale.dart';
-import 'plugin.dart';
 import 'units.dart';
 
 /// An immutable, chainable date-time wrapper with rich manipulation APIs.
@@ -154,16 +153,6 @@ class Hora implements Comparable<Hora> {
 
   /// The global default locale.
   static HoraLocale globalLocale = const HoraLocaleEn();
-
-  /// Registered plugins.
-  static final List<HoraPlugin> _plugins = [];
-
-  /// Registers a plugin globally.
-  static void use(HoraPlugin plugin) {
-    if (!_plugins.contains(plugin)) {
-      _plugins.add(plugin);
-    }
-  }
 
   // ============ Basic Getters ============
 

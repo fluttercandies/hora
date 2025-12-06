@@ -79,62 +79,6 @@ void main() {
     });
   });
 
-  group('HoraLocales Registry', () {
-    setUp(() {
-      HoraLocales.clear();
-      HoraLocales.register(const HoraLocaleEn());
-      HoraLocales.register(const HoraLocaleZhCn());
-    });
-
-    test('get returns registered locale', () {
-      final en = HoraLocales.get('en');
-      expect(en?.code, 'en');
-    });
-
-    test('get returns null for unknown', () {
-      expect(HoraLocales.get('unknown'), isNull);
-    });
-
-    test('getOrDefault returns fallback for unknown', () {
-      final fallback =
-          HoraLocales.getOrDefault('unknown', const HoraLocaleEn());
-      expect(fallback.code, 'en');
-    });
-
-    test('has returns true for registered', () {
-      expect(HoraLocales.has('en'), isTrue);
-      expect(HoraLocales.has('zh-cn'), isTrue);
-    });
-
-    test('has returns false for unknown', () {
-      expect(HoraLocales.has('unknown'), isFalse);
-    });
-
-    test('register adds new locale', () {
-      final custom = _CustomLocale();
-      HoraLocales.register(custom);
-      expect(HoraLocales.has('custom'), isTrue);
-      expect(HoraLocales.get('custom')?.code, 'custom');
-    });
-
-    test('codes returns all registered codes', () {
-      expect(HoraLocales.codes, contains('en'));
-      expect(HoraLocales.codes, contains('zh-cn'));
-    });
-
-    test('count returns number of registered locales', () {
-      expect(HoraLocales.count, 2);
-      HoraLocales.register(_CustomLocale());
-      expect(HoraLocales.count, 3);
-    });
-
-    test('clear removes all locales', () {
-      expect(HoraLocales.count, greaterThan(0));
-      HoraLocales.clear();
-      expect(HoraLocales.count, 0);
-    });
-  });
-
   group('HoraFormats', () {
     test('default formats', () {
       const formats = HoraFormats();
@@ -189,17 +133,22 @@ void main() {
     test('format uses locale weekday names', () {
       // 2023-12-25 is Monday
       final h = Hora.of(
-          year: 2023, month: 12, day: 25, locale: const HoraLocaleZhCn(),);
+        year: 2023,
+        month: 12,
+        day: 25,
+        locale: const HoraLocaleZhCn(),
+      );
       expect(h.format('dddd'), '星期一');
     });
 
     test('format uses locale meridiem', () {
       final h = Hora.of(
-          year: 2023,
-          month: 12,
-          day: 25,
-          hour: 14,
-          locale: const HoraLocaleZhCn(),);
+        year: 2023,
+        month: 12,
+        day: 25,
+        hour: 14,
+        locale: const HoraLocaleZhCn(),
+      );
       expect(h.format('A'), '下午');
     });
 
@@ -214,24 +163,4 @@ void main() {
       Hora.globalLocale = original;
     });
   });
-}
-
-class _CustomLocale extends HoraLocale {
-  @override
-  String get code => 'custom';
-
-  @override
-  List<String> get months => List.generate(12, (i) => 'Month${i + 1}');
-
-  @override
-  List<String> get monthsShort => List.generate(12, (i) => 'M${i + 1}');
-
-  @override
-  List<String> get weekdays => List.generate(7, (i) => 'Day$i');
-
-  @override
-  List<String> get weekdaysShort => List.generate(7, (i) => 'D$i');
-
-  @override
-  List<String> get weekdaysMin => List.generate(7, (i) => '$i');
 }

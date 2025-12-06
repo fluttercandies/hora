@@ -3,13 +3,6 @@ import 'package:hora/src/plugins/locale_data.dart';
 import 'package:test/test.dart';
 
 void main() {
-  // Register locales for registry-based tests
-  setUp(() {
-    HoraLocales.clear();
-    HoraLocales.register(const HoraLocaleEn());
-    HoraLocales.register(const HoraLocaleZhCn());
-  });
-
   group('LocaleData', () {
     test('code returns locale code', () {
       final h = Hora.now();
@@ -106,24 +99,13 @@ void main() {
 
     test('meridiemString returns AM/PM', () {
       expect(
-          Hora.of(year: 2024, month: 3, day: 15, hour: 9).meridiemString, 'AM',);
-      expect(Hora.of(year: 2024, month: 3, day: 15, hour: 14).meridiemString,
-          'PM',);
-    });
-
-    test('registeredLocaleCodes returns available locales', () {
-      expect(LocaleDataExt.registeredLocaleCodes, contains('en'));
-      expect(LocaleDataExt.registeredLocaleCodes, contains('zh-cn'));
-    });
-
-    test('dataFor returns locale data for code', () {
-      final data = LocaleDataExt.dataFor('en');
-      expect(data, isNotNull);
-      expect(data!.code, 'en');
-    });
-
-    test('dataFor returns null for unknown locale', () {
-      expect(LocaleDataExt.dataFor('unknown-locale'), isNull);
+        Hora.of(year: 2024, month: 3, day: 15, hour: 9).meridiemString,
+        'AM',
+      );
+      expect(
+        Hora.of(year: 2024, month: 3, day: 15, hour: 14).meridiemString,
+        'PM',
+      );
     });
   });
 

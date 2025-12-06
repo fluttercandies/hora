@@ -54,7 +54,9 @@ void main() {
       test('returns all days in month', () {
         expect(Hora.of(year: 2024, month: 3).daysOfMonth.length, 31);
         expect(
-            Hora.of(year: 2024, month: 2).daysOfMonth.length, 29,); // leap year
+          Hora.of(year: 2024, month: 2).daysOfMonth.length,
+          29,
+        ); // leap year
         expect(Hora.of(year: 2023, month: 2).daysOfMonth.length, 28);
       });
     });

@@ -106,10 +106,14 @@ void main() {
           l: 'YYYY-MM-DD',
           ll: 'D MMM YYYY',
         );
-        expect(h.localizedFormat('L', formats: customFormats),
-            equals('2023-12-25'),);
-        expect(h.localizedFormat('LL', formats: customFormats),
-            equals('25 Dec 2023'),);
+        expect(
+          h.localizedFormat('L', formats: customFormats),
+          equals('2023-12-25'),
+        );
+        expect(
+          h.localizedFormat('LL', formats: customFormats),
+          equals('25 Dec 2023'),
+        );
       });
     });
 

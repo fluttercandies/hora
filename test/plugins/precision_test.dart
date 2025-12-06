@@ -65,15 +65,25 @@ void main() {
         final h2 = Hora.of(year: 2024, month: 3, day: 16, hour: 1);
 
         expect(
-            h1.isBeforeWithPrecision(h2, precision: TimePrecision.day), isTrue,);
-        expect(h2.isBeforeWithPrecision(h1, precision: TimePrecision.day),
-            isFalse,);
+          h1.isBeforeWithPrecision(h2, precision: TimePrecision.day),
+          isTrue,
+        );
+        expect(
+          h2.isBeforeWithPrecision(h1, precision: TimePrecision.day),
+          isFalse,
+        );
       });
     });
 
     group('truncateTo', () {
       final h = Hora.of(
-          year: 2024, month: 3, day: 15, hour: 14, minute: 30, second: 45,);
+        year: 2024,
+        month: 3,
+        day: 15,
+        hour: 14,
+        minute: 30,
+        second: 45,
+      );
 
       test('truncates to year', () {
         final t = h.truncateTo(TimePrecision.year);
