@@ -39,7 +39,7 @@ Add `hora` to your `pubspec.yaml`:
 
 ```yaml
 dependencies:
-  hora: ^1.0.0
+  hora: any
 ```
 
 Then run:
@@ -613,29 +613,6 @@ Hora includes many more plugins:
 | `relativeTime` | Human-readable relative time |
 | `timezone` | Timezone support |
 | `weekOfYear` | Week of year calculations |
-
-### Creating Custom Plugins
-
-```dart
-class MyPlugin extends HoraPlugin {
-  const MyPlugin();
-
-  @override
-  String get name => 'myPlugin';
-
-  @override
-  void install() {
-    // Register extensions
-    HoraPluginRegistry.register('myMethod', (hora, args) {
-      // Custom logic
-      return result;
-    });
-  }
-}
-
-// Use plugin
-Hora.use(const MyPlugin());
-```
 
 ## Comparison with Other Libraries
 

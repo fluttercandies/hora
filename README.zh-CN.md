@@ -39,7 +39,7 @@
 
 ```yaml
 dependencies:
-  hora: ^1.0.0
+  hora: any
 ```
 
 然后运行：
@@ -612,29 +612,6 @@ Hora 还包含更多插件：
 | `relativeTime` | 人类可读的相对时间 |
 | `timezone` | 时区支持 |
 | `weekOfYear` | 年周计算 |
-
-### 创建自定义插件
-
-```dart
-class MyPlugin extends HoraPlugin {
-  const MyPlugin();
-
-  @override
-  String get name => 'myPlugin';
-
-  @override
-  void install() {
-    // 注册扩展
-    HoraPluginRegistry.register('myMethod', (hora, args) {
-      // 自定义逻辑
-      return result;
-    });
-  }
-}
-
-// 使用插件
-Hora.use(const MyPlugin());
-```
 
 ## 与其他库的比较
 
