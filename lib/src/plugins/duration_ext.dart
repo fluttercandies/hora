@@ -8,12 +8,12 @@
 /// import 'package:hora/hora.dart';
 /// import 'package:hora/src/plugins/duration_ext.dart';
 ///
-/// // Create durations
-/// final d = HoraDurationExt.fromHours(2.5);
+/// // Create durations with fractional values
+/// final d = HoraDurationFactory.fromHours(2.5);
 /// print(d.humanize()); // "2 hours and 30 minutes"
 ///
-/// // Parse duration strings
-/// final d2 = HoraDurationExt.parse('P1DT2H30M');
+/// // Parse duration strings (using HoraDuration.parse from core)
+/// final d2 = HoraDuration.parse('P1DT2H30M');
 /// print(d2.totalHours); // 26.5
 ///
 /// // Format durations
@@ -125,139 +125,76 @@ extension HoraDurationExtUtils on HoraDuration {
     return totalMs / (1000 * 60 * 60 * 24);
   }
 
-  /// Checks if the duration is zero.
-  bool get isZero => inMilliseconds == 0;
-
-  /// Checks if the duration is negative.
-  bool get isNegative => inMilliseconds < 0;
-
-  /// Gets the absolute value of this duration.
-  HoraDuration get abs => isNegative ? negate() : this;
-
-  /// Negates this duration.
-  HoraDuration negate() => HoraDuration(
-        years: -years,
-        months: -months,
-        weeks: -weeks,
-        days: -days,
-        hours: -hours,
-        minutes: -minutes,
-        seconds: -seconds,
-        milliseconds: -milliseconds,
-      );
-
-  /// Multiplies this duration by a scalar.
-  HoraDuration operator *(num factor) => HoraDuration(
-        years: (years * factor).round(),
-        months: (months * factor).round(),
-        weeks: (weeks * factor).round(),
-        days: (days * factor).round(),
-        hours: (hours * factor).round(),
-        minutes: (minutes * factor).round(),
-        seconds: (seconds * factor).round(),
-        milliseconds: (milliseconds * factor).round(),
-      );
-
-  /// Divides this duration by a scalar.
-  HoraDuration operator /(num divisor) => this * (1 / divisor);
-
-  /// Adds two durations.
-  HoraDuration operator +(HoraDuration other) => HoraDuration(
-        years: years + other.years,
-        months: months + other.months,
-        weeks: weeks + other.weeks,
-        days: days + other.days,
-        hours: hours + other.hours,
-        minutes: minutes + other.minutes,
-        seconds: seconds + other.seconds,
-        milliseconds: milliseconds + other.milliseconds,
-      );
-
-  /// Subtracts two durations.
-  HoraDuration operator -(HoraDuration other) => HoraDuration(
-        years: years - other.years,
-        months: months - other.months,
-        weeks: weeks - other.weeks,
-        days: days - other.days,
-        hours: hours - other.hours,
-        minutes: minutes - other.minutes,
-        seconds: seconds - other.seconds,
-        milliseconds: milliseconds - other.milliseconds,
-      );
-
   /// Converts to a Dart [Duration].
   Duration toDartDuration() => Duration(milliseconds: inMilliseconds);
 }
 
-/// Factory methods for creating durations.
-extension HoraDurationFactoryExt on HoraDuration {
+/// Factory class for creating durations with fractional values.
+///
+/// Use these methods when you need to create durations from fractional
+/// hours, minutes, etc.
+///
+/// ```dart
+/// final d = HoraDurationFactory.fromHours(2.5);
+/// print(d.hours); // 2
+/// print(d.minutes); // 30
+/// ```
+class HoraDurationFactory {
+  HoraDurationFactory._();
+
   /// Creates a duration from hours (can be fractional).
   static HoraDuration fromHours(double hours) {
-    final totalMs = (hours * 60 * 60 * 1000).round();
-    return HoraDuration(milliseconds: totalMs);
+    final h = hours.truncate();
+    final remainingMinutes = (hours - h) * 60;
+    final m = remainingMinutes.truncate();
+    final remainingSeconds = (remainingMinutes - m) * 60;
+    final s = remainingSeconds.truncate();
+    final ms = ((remainingSeconds - s) * 1000).round();
+
+    return HoraDuration(
+      hours: h,
+      minutes: m,
+      seconds: s,
+      milliseconds: ms,
+      isNegative: hours < 0,
+    );
   }
 
   /// Creates a duration from minutes (can be fractional).
   static HoraDuration fromMinutes(double minutes) {
-    final totalMs = (minutes * 60 * 1000).round();
-    return HoraDuration(milliseconds: totalMs);
+    final m = minutes.truncate();
+    final remainingSeconds = (minutes - m) * 60;
+    final s = remainingSeconds.truncate();
+    final ms = ((remainingSeconds - s) * 1000).round();
+
+    return HoraDuration(
+      minutes: m.abs(),
+      seconds: s.abs(),
+      milliseconds: ms.abs(),
+      isNegative: minutes < 0,
+    );
   }
 
   /// Creates a duration from seconds (can be fractional).
   static HoraDuration fromSeconds(double seconds) {
-    final totalMs = (seconds * 1000).round();
-    return HoraDuration(milliseconds: totalMs);
+    final s = seconds.truncate();
+    final ms = ((seconds - s) * 1000).round();
+
+    return HoraDuration(
+      seconds: s.abs(),
+      milliseconds: ms.abs(),
+      isNegative: seconds < 0,
+    );
   }
 
   /// Creates a duration from days (can be fractional).
   static HoraDuration fromDays(double days) {
-    final totalMs = (days * 24 * 60 * 60 * 1000).round();
-    return HoraDuration(milliseconds: totalMs);
-  }
-
-  /// Parses an ISO 8601 duration string.
-  ///
-  /// Format: `PnYnMnDTnHnMnS`
-  ///
-  /// Example: `P1Y2M3DT4H5M6S` = 1 year, 2 months, 3 days, 4 hours, 5 minutes, 6 seconds
-  static HoraDuration parse(String input) {
-    final pattern = RegExp(
-      r'^P(?:(\d+)Y)?(?:(\d+)M)?(?:(\d+)W)?(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$',
+    final d = days.truncate();
+    final remainingHours = (days - d) * 24;
+    return HoraDurationFactory.fromHours(remainingHours).copyWith(
+      days: d.abs(),
+      isNegative: days < 0,
     );
-
-    final match = pattern.firstMatch(input.toUpperCase());
-    if (match == null) {
-      throw FormatException('Invalid ISO 8601 duration: $input');
-    }
-
-    final years = int.tryParse(match.group(1) ?? '') ?? 0;
-    final months = int.tryParse(match.group(2) ?? '') ?? 0;
-    final weeks = int.tryParse(match.group(3) ?? '') ?? 0;
-    final days = int.tryParse(match.group(4) ?? '') ?? 0;
-    final hours = int.tryParse(match.group(5) ?? '') ?? 0;
-    final minutes = int.tryParse(match.group(6) ?? '') ?? 0;
-    final secondsStr = match.group(7);
-    final seconds = secondsStr != null ? double.tryParse(secondsStr) ?? 0 : 0.0;
-
-    return HoraDuration(
-      years: years,
-      months: months,
-      weeks: weeks,
-      days: days,
-      hours: hours,
-      minutes: minutes,
-      seconds: seconds.floor(),
-      milliseconds: ((seconds - seconds.floor()) * 1000).round(),
-    );
-  }
-
-  /// Tries to parse an ISO 8601 duration string.
-  static HoraDuration? tryParse(String input) {
-    try {
-      return parse(input);
-    } catch (_) {
-      return null;
-    }
   }
 }
 

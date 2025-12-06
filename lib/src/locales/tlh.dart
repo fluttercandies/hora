@@ -92,9 +92,7 @@ class HoraLocaleTlh extends HoraLocale {
       );
 
   @override
-  HoraRelativeTime get relativeTime => const HoraRelativeTime(
-        
-      );
+  HoraRelativeTime get relativeTime => const HoraRelativeTime();
 
   @override
   String ordinal(int n, [String? unit]) => '$n';

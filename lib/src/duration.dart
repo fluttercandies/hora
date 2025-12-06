@@ -74,6 +74,10 @@ class HoraDuration implements Comparable<HoraDuration> {
   factory HoraDuration.ofMilliseconds(int ms) =>
       HoraDuration(milliseconds: ms.abs(), isNegative: ms < 0);
 
+  /// Creates a duration from microseconds.
+  factory HoraDuration.ofMicroseconds(int us) =>
+      HoraDuration(microseconds: us.abs(), isNegative: us < 0);
+
   /// Creates a duration from a Dart [Duration].
   factory HoraDuration.fromDuration(Duration duration) {
     final isNeg = duration.isNegative;
@@ -272,16 +276,14 @@ class HoraDuration implements Comparable<HoraDuration> {
   /// Note: Years and months are converted using average values.
   Duration asDuration() {
     final sign = isNegative ? -1 : 1;
-    final totalMicros = (asApproximateSeconds * 1000000 +
-            milliseconds * 1000 +
-            microseconds) *
-        sign;
+    final totalMicros =
+        (asApproximateSeconds * 1000000 + milliseconds * 1000 + microseconds) *
+            sign;
     return Duration(microseconds: totalMicros.round());
   }
 
   /// Returns the absolute (non-negative) duration.
-  HoraDuration abs() =>
-      isNegative ? copyWith(isNegative: false) : this;
+  HoraDuration abs() => isNegative ? copyWith(isNegative: false) : this;
 
   /// Returns the negated duration.
   HoraDuration negate() => copyWith(isNegative: !isNegative);
@@ -352,8 +354,8 @@ class HoraDuration implements Comparable<HoraDuration> {
     }
 
     final thisUs = inMicroseconds + inMonths * 30.4375 * 24 * 60 * 60 * 1000000;
-    final otherUs =
-        other.inMicroseconds + other.inMonths * 30.4375 * 24 * 60 * 60 * 1000000;
+    final otherUs = other.inMicroseconds +
+        other.inMonths * 30.4375 * 24 * 60 * 60 * 1000000;
 
     final isResultNeg = isNegative ? thisUs + otherUs > 0 : thisUs < otherUs;
 
@@ -401,8 +403,11 @@ class HoraDuration implements Comparable<HoraDuration> {
     if (weeks != 0) buf.write('${weeks}W');
     if (days != 0) buf.write('${days}D');
 
-    if (hours != 0 || minutes != 0 || seconds != 0 || 
-        milliseconds != 0 || microseconds != 0) {
+    if (hours != 0 ||
+        minutes != 0 ||
+        seconds != 0 ||
+        milliseconds != 0 ||
+        microseconds != 0) {
       buf.write('T');
       if (hours != 0) buf.write('${hours}H');
       if (minutes != 0) buf.write('${minutes}M');
@@ -483,7 +488,8 @@ class HoraDuration implements Comparable<HoraDuration> {
   int compareTo(HoraDuration other) {
     // Compare using approximate microseconds
     final thisUs = (isNegative ? -1 : 1) * asApproximateSeconds * 1000000;
-    final otherUs = (other.isNegative ? -1 : 1) * other.asApproximateSeconds * 1000000;
+    final otherUs =
+        (other.isNegative ? -1 : 1) * other.asApproximateSeconds * 1000000;
     return thisUs.compareTo(otherUs);
   }
 

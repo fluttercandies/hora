@@ -177,12 +177,14 @@ extension CalendarExt on Hora {
 
     // Fill days
     for (var day = 1; day <= last.day; day++) {
-      currentWeek.add(Hora.of(
-        year: year,
-        month: month,
-        day: day,
-        locale: locale,
-      ),);
+      currentWeek.add(
+        Hora.of(
+          year: year,
+          month: month,
+          day: day,
+          locale: locale,
+        ),
+      );
 
       if (currentWeek.length == 7) {
         weeks.add(currentWeek);

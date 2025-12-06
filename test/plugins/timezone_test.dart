@@ -144,14 +144,20 @@ void main() {
         timezone: tz,
       );
 
-      expect(range.contains(Hora.of(year: 2024, month: 3, day: 15, hour: 12, utc: true)), isTrue);
-      expect(range.contains(Hora.of(year: 2024, month: 3, day: 15, hour: 8, utc: true)), isFalse);
+      expect(
+          range.contains(
+              Hora.of(year: 2024, month: 3, day: 15, hour: 12, utc: true),),
+          isTrue,);
+      expect(
+          range.contains(
+              Hora.of(year: 2024, month: 3, day: 15, hour: 8, utc: true),),
+          isFalse,);
     });
 
     test('inTimezone converts range', () {
       final utc = HoraTimezone.utc;
       final jst = HoraTimezone.fromOffset(9);
-      
+
       final range = TimezoneRange(
         start: Hora.of(year: 2024, month: 3, day: 15, hour: 9, utc: true),
         end: Hora.of(year: 2024, month: 3, day: 15, hour: 17, utc: true),

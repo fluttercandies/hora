@@ -1,0 +1,11 @@
+name: hora_example
+description: Examples demonstrating the Hora date/time library.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: ^3.0.0
+
+dependencies:
+  hora:
+    path: ../

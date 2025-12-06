@@ -69,11 +69,14 @@ void main() {
       });
 
       test('creates UTC time when specified', () {
-        final h = HoraObject.from({
-          'year': 2023,
-          'month': 6,
-          'day': 15,
-        }, utc: true,);
+        final h = HoraObject.from(
+          {
+            'year': 2023,
+            'month': 6,
+            'day': 15,
+          },
+          utc: true,
+        );
         expect(h.isUtc, isTrue);
       });
 

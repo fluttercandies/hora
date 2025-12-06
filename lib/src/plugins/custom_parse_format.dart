@@ -454,7 +454,8 @@ extension HoraCustomParseExt on Hora {
     String format, {
     HoraLocale? locale,
     bool strict = false,
-  }) => HoraParser.parse(input, format, locale: locale, strict: strict);
+  }) =>
+      HoraParser.parse(input, format, locale: locale, strict: strict);
 
   /// Tries to parse a string using a custom format.
   static Hora? tryParseFormat(
@@ -462,5 +463,6 @@ extension HoraCustomParseExt on Hora {
     String format, {
     HoraLocale? locale,
     bool strict = false,
-  }) => HoraParser.tryParse(input, format, locale: locale, strict: strict);
+  }) =>
+      HoraParser.tryParse(input, format, locale: locale, strict: strict);
 }

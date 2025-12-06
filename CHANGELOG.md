@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-12-06
+
+### Fixed
+- **Extension naming conflict**: Removed duplicate `calendar()` method from `HoraCalendarExt` in `extensions.dart`, using the richer version from `calendar.dart` plugin instead
+- **Bug fix**: Fixed `IntToHora.microseconds` extension using wrong factory method (`ofMilliseconds` → `ofMicroseconds`)
+- **Example files**: Fixed API usage errors in example files:
+  - Fixed `difference()` usage to use standard `Duration` properties
+  - Fixed `Hora` constructor calls (using `Hora.of()` instead of unnamed constructor)
+  - Fixed duration extension usage (`1.years` instead of `1.year`)
+  - Updated imports to avoid unnecessary duplicates
+- **README documentation**: Updated API examples to match actual implementation:
+  - Changed `Hora.now(utc: true)` to `Hora.nowUtc()`
+  - Clarified `fromNow()` (extensions) vs `relativeFromNow()` (plugin) usage
+
+### Added
+- **HoraDuration.ofMicroseconds()**: Factory constructor for creating durations from microseconds
+
+### Improved
+- **Extension design**: Clearer separation between core extensions and plugin extensions
+  - Core extensions (`extensions.dart`): Simple, intuitive methods (`fromNow()`, `earliest`, `latest`, `rangeTo()`)
+  - Plugin extensions: Rich APIs with configuration options (`calendar()` with `CalendarConfig`)
+- **Example structure**: Reorganized example directory as a complete Dart package
+  - Added `pubspec.yaml` with proper dependency
+  - Moved source files to `bin/` directory
+  - Updated README with comprehensive documentation
+
 ## [1.0.0] - 2025-12-06
 
 ### Added

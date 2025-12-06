@@ -21,7 +21,7 @@ extension IntToHora on int {
   Hora get asUnixMicros => Hora.unixMicros(this);
 
   /// Creates a duration of this many microseconds.
-  HoraDuration get microseconds => HoraDuration.ofMilliseconds(this);
+  HoraDuration get microseconds => HoraDuration.ofMicroseconds(this);
 
   /// Creates a duration of this many milliseconds.
   HoraDuration get milliseconds => HoraDuration.ofMilliseconds(this);
@@ -129,65 +129,6 @@ extension HoraRelativeTimeExt on Hora {
   }
 }
 
-/// Extensions for calendar-style formatting.
-extension HoraCalendarExt on Hora {
-  /// Returns a calendar-style string relative to a reference date.
-  ///
-  /// Examples:
-  /// - Same day: "Today at 2:30 PM"
-  /// - Yesterday: "Yesterday at 2:30 PM"
-  /// - Tomorrow: "Tomorrow at 2:30 PM"
-  /// - This week: "Monday at 2:30 PM"
-  /// - Last week: "Last Monday at 2:30 PM"
-  /// - Else: "12/25/2023"
-  String calendar({
-    Hora? reference,
-    CalendarFormats? formats,
-  }) {
-    reference ??= Hora.now();
-    formats ??= const CalendarFormats();
-
-    final refStartOfDay = reference.startOf(TemporalUnit.day);
-    final diff = startOf(TemporalUnit.day).diff(refStartOfDay, TemporalUnit.day);
-
-    String pattern;
-    if (diff.toInt() == 0) {
-      pattern = formats.sameDay;
-    } else if (diff.toInt() == -1) {
-      pattern = formats.lastDay;
-    } else if (diff.toInt() == 1) {
-      pattern = formats.nextDay;
-    } else if (diff > -7 && diff < 0) {
-      pattern = formats.lastWeek;
-    } else if (diff > 0 && diff < 7) {
-      pattern = formats.nextWeek;
-    } else {
-      pattern = formats.sameElse;
-    }
-
-    return format(pattern);
-  }
-}
-
-/// Configuration for calendar-style formatting.
-class CalendarFormats {
-  const CalendarFormats({
-    this.sameDay = '[Today at] LT',
-    this.nextDay = '[Tomorrow at] LT',
-    this.nextWeek = 'dddd [at] LT',
-    this.lastDay = '[Yesterday at] LT',
-    this.lastWeek = '[Last] dddd [at] LT',
-    this.sameElse = 'L',
-  });
-
-  final String sameDay;
-  final String nextDay;
-  final String nextWeek;
-  final String lastDay;
-  final String lastWeek;
-  final String sameElse;
-}
-
 /// Extensions for min/max operations.
 extension HoraMinMaxExt on Iterable<Hora> {
   /// Returns the earliest (minimum) [Hora] in this iterable.
@@ -237,9 +178,8 @@ extension HoraRangeExt on Hora {
 
     while (isForward ? !current.isAfter(end) : !current.isBefore(end)) {
       yield current;
-      current = isForward
-          ? current.add(step, unit)
-          : current.subtract(step, unit);
+      current =
+          isForward ? current.add(step, unit) : current.subtract(step, unit);
     }
   }
 

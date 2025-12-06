@@ -1,4 +1,5 @@
 import 'package:hora/hora.dart';
+import 'package:hora/src/plugins/calendar.dart';
 import 'package:test/test.dart';
 
 void main() {

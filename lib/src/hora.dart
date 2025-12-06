@@ -33,7 +33,6 @@ import 'units.dart';
 /// ```
 @immutable
 class Hora implements Comparable<Hora> {
-
   /// Creates an invalid [Hora] instance.
   const Hora._invalid(this._locale)
       : _dateTime = null,
@@ -42,6 +41,7 @@ class Hora implements Comparable<Hora> {
   // Private constructor for cloning
   const Hora._clone(DateTime dateTime, this._locale, this._isValid)
       : _dateTime = dateTime;
+
   /// Creates a [Hora] from a [DateTime].
   Hora.fromDateTime(DateTime dateTime, {HoraLocale? locale})
       : _dateTime = dateTime,
@@ -94,8 +94,7 @@ class Hora implements Comparable<Hora> {
   }
 
   /// Creates a [Hora] from a Unix timestamp in seconds.
-  factory Hora.unix(int seconds, {HoraLocale? locale}) =>
-      Hora.fromDateTime(
+  factory Hora.unix(int seconds, {HoraLocale? locale}) => Hora.fromDateTime(
         DateTime.fromMillisecondsSinceEpoch(seconds * 1000),
         locale: locale,
       );
@@ -553,8 +552,7 @@ class Hora implements Comparable<Hora> {
     final includeStart = inclusivity.startsWith('[');
     final includeEnd = inclusivity.endsWith(']');
 
-    final afterStart =
-        includeStart ? isSameOrAfter(start) : isAfter(start);
+    final afterStart = includeStart ? isSameOrAfter(start) : isAfter(start);
     final beforeEnd = includeEnd ? isSameOrBefore(end) : isBefore(end);
 
     return afterStart && beforeEnd;
@@ -637,7 +635,8 @@ class Hora implements Comparable<Hora> {
   bool get isFuture => isAfter(Hora.now());
 
   /// Whether this is a weekend day (Saturday or Sunday).
-  bool get isWeekend => weekday == DateTime.saturday || weekday == DateTime.sunday;
+  bool get isWeekend =>
+      weekday == DateTime.saturday || weekday == DateTime.sunday;
 
   /// Whether this is a weekday (Monday to Friday).
   bool get isWeekday => !isWeekend;
@@ -897,7 +896,8 @@ class HoraFormatter {
       'HH' => h.hour.toString().padLeft(2, '0'),
       // Hour (12h)
       'h' => ((h.hour % 12) == 0 ? 12 : h.hour % 12).toString(),
-      'hh' => ((h.hour % 12) == 0 ? 12 : h.hour % 12).toString().padLeft(2, '0'),
+      'hh' =>
+        ((h.hour % 12) == 0 ? 12 : h.hour % 12).toString().padLeft(2, '0'),
       // Hour (1-24)
       'k' => (h.hour == 0 ? 24 : h.hour).toString(),
       'kk' => (h.hour == 0 ? 24 : h.hour).toString().padLeft(2, '0'),

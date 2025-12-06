@@ -105,8 +105,10 @@ void main() {
     });
 
     test('meridiemString returns AM/PM', () {
-      expect(Hora.of(year: 2024, month: 3, day: 15, hour: 9).meridiemString, 'AM');
-      expect(Hora.of(year: 2024, month: 3, day: 15, hour: 14).meridiemString, 'PM');
+      expect(
+          Hora.of(year: 2024, month: 3, day: 15, hour: 9).meridiemString, 'AM',);
+      expect(Hora.of(year: 2024, month: 3, day: 15, hour: 14).meridiemString,
+          'PM',);
     });
 
     test('registeredLocaleCodes returns available locales', () {

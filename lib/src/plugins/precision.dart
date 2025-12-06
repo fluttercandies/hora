@@ -58,29 +58,29 @@ enum TimePrecision {
 extension TimePrecisionExt on TimePrecision {
   /// Converts this precision to a TemporalUnit.
   TemporalUnit get toUnit => switch (this) {
-      TimePrecision.year => TemporalUnit.year,
-      TimePrecision.quarter => TemporalUnit.quarter,
-      TimePrecision.month => TemporalUnit.month,
-      TimePrecision.week => TemporalUnit.week,
-      TimePrecision.day => TemporalUnit.day,
-      TimePrecision.hour => TemporalUnit.hour,
-      TimePrecision.minute => TemporalUnit.minute,
-      TimePrecision.second => TemporalUnit.second,
-      TimePrecision.millisecond => TemporalUnit.millisecond,
-    };
+        TimePrecision.year => TemporalUnit.year,
+        TimePrecision.quarter => TemporalUnit.quarter,
+        TimePrecision.month => TemporalUnit.month,
+        TimePrecision.week => TemporalUnit.week,
+        TimePrecision.day => TemporalUnit.day,
+        TimePrecision.hour => TemporalUnit.hour,
+        TimePrecision.minute => TemporalUnit.minute,
+        TimePrecision.second => TemporalUnit.second,
+        TimePrecision.millisecond => TemporalUnit.millisecond,
+      };
 
   /// Gets the number of milliseconds in this precision unit.
   int get milliseconds => switch (this) {
-      TimePrecision.year => 365 * 24 * 60 * 60 * 1000,
-      TimePrecision.quarter => 91 * 24 * 60 * 60 * 1000,
-      TimePrecision.month => 30 * 24 * 60 * 60 * 1000,
-      TimePrecision.week => 7 * 24 * 60 * 60 * 1000,
-      TimePrecision.day => 24 * 60 * 60 * 1000,
-      TimePrecision.hour => 60 * 60 * 1000,
-      TimePrecision.minute => 60 * 1000,
-      TimePrecision.second => 1000,
-      TimePrecision.millisecond => 1,
-    };
+        TimePrecision.year => 365 * 24 * 60 * 60 * 1000,
+        TimePrecision.quarter => 91 * 24 * 60 * 60 * 1000,
+        TimePrecision.month => 30 * 24 * 60 * 60 * 1000,
+        TimePrecision.week => 7 * 24 * 60 * 60 * 1000,
+        TimePrecision.day => 24 * 60 * 60 * 1000,
+        TimePrecision.hour => 60 * 60 * 1000,
+        TimePrecision.minute => 60 * 1000,
+        TimePrecision.second => 1000,
+        TimePrecision.millisecond => 1,
+      };
 }
 
 /// Represents a rounding mode for time operations.
@@ -101,31 +101,32 @@ enum RoundingMode {
 /// Extension providing precision operations for Hora.
 extension PrecisionExt on Hora {
   /// Checks if this date is the same as another with the given precision.
-  bool isSameAs(Hora other, {required TimePrecision precision}) => switch (precision) {
-      TimePrecision.year => year == other.year,
-      TimePrecision.quarter => year == other.year && quarter == other.quarter,
-      TimePrecision.month => year == other.year && month == other.month,
-      TimePrecision.week =>
-        isoWeekYear == other.isoWeekYear && isoWeek == other.isoWeek,
-      TimePrecision.day =>
-        year == other.year && month == other.month && day == other.day,
-      TimePrecision.hour => year == other.year &&
-          month == other.month &&
-          day == other.day &&
-          hour == other.hour,
-      TimePrecision.minute => year == other.year &&
-          month == other.month &&
-          day == other.day &&
-          hour == other.hour &&
-          minute == other.minute,
-      TimePrecision.second => year == other.year &&
-          month == other.month &&
-          day == other.day &&
-          hour == other.hour &&
-          minute == other.minute &&
-          second == other.second,
-      TimePrecision.millisecond => unixMillis == other.unixMillis,
-    };
+  bool isSameAs(Hora other, {required TimePrecision precision}) =>
+      switch (precision) {
+        TimePrecision.year => year == other.year,
+        TimePrecision.quarter => year == other.year && quarter == other.quarter,
+        TimePrecision.month => year == other.year && month == other.month,
+        TimePrecision.week =>
+          isoWeekYear == other.isoWeekYear && isoWeek == other.isoWeek,
+        TimePrecision.day =>
+          year == other.year && month == other.month && day == other.day,
+        TimePrecision.hour => year == other.year &&
+            month == other.month &&
+            day == other.day &&
+            hour == other.hour,
+        TimePrecision.minute => year == other.year &&
+            month == other.month &&
+            day == other.day &&
+            hour == other.hour &&
+            minute == other.minute,
+        TimePrecision.second => year == other.year &&
+            month == other.month &&
+            day == other.day &&
+            hour == other.hour &&
+            minute == other.minute &&
+            second == other.second,
+        TimePrecision.millisecond => unixMillis == other.unixMillis,
+      };
 
   /// Checks if this date is before another with the given precision.
   bool isBeforeWithPrecision(Hora other, {required TimePrecision precision}) {
@@ -143,50 +144,53 @@ extension PrecisionExt on Hora {
 
   /// Truncates this date to the given precision.
   Hora truncateTo(TimePrecision precision) => switch (precision) {
-      TimePrecision.year => Hora.of(year: year, locale: locale),
-      TimePrecision.quarter => Hora.of(
-          year: year,
-          month: (quarter - 1) * 3 + 1,
-          locale: locale,
-        ),
-      TimePrecision.month => Hora.of(year: year, month: month, locale: locale),
-      TimePrecision.week => startOf(TemporalUnit.week),
-      TimePrecision.day => Hora.of(
-          year: year,
-          month: month,
-          day: day,
-          locale: locale,
-        ),
-      TimePrecision.hour => Hora.of(
-          year: year,
-          month: month,
-          day: day,
-          hour: hour,
-          locale: locale,
-        ),
-      TimePrecision.minute => Hora.of(
-          year: year,
-          month: month,
-          day: day,
-          hour: hour,
-          minute: minute,
-          locale: locale,
-        ),
-      TimePrecision.second => Hora.of(
-          year: year,
-          month: month,
-          day: day,
-          hour: hour,
-          minute: minute,
-          second: second,
-          locale: locale,
-        ),
-      TimePrecision.millisecond => this,
-    };
+        TimePrecision.year => Hora.of(year: year, locale: locale),
+        TimePrecision.quarter => Hora.of(
+            year: year,
+            month: (quarter - 1) * 3 + 1,
+            locale: locale,
+          ),
+        TimePrecision.month =>
+          Hora.of(year: year, month: month, locale: locale),
+        TimePrecision.week => startOf(TemporalUnit.week),
+        TimePrecision.day => Hora.of(
+            year: year,
+            month: month,
+            day: day,
+            locale: locale,
+          ),
+        TimePrecision.hour => Hora.of(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            locale: locale,
+          ),
+        TimePrecision.minute => Hora.of(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            locale: locale,
+          ),
+        TimePrecision.second => Hora.of(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second,
+            locale: locale,
+          ),
+        TimePrecision.millisecond => this,
+      };
 
   /// Rounds this date to the given precision.
-  Hora roundTo(TimePrecision precision,
-      {RoundingMode mode = RoundingMode.round,}) {
+  Hora roundTo(
+    TimePrecision precision, {
+    RoundingMode mode = RoundingMode.round,
+  }) {
     switch (mode) {
       case RoundingMode.floor:
       case RoundingMode.truncate:
@@ -241,12 +245,13 @@ extension PrecisionExt on Hora {
   }
 
   /// Computes the difference with precision-aware truncation.
-  int diffWithPrecision(Hora other, {required TimePrecision precision}) => truncateTo(precision)
-        .diff(
-          other.truncateTo(precision),
-          precision.toUnit,
-        )
-        .toInt();
+  int diffWithPrecision(Hora other, {required TimePrecision precision}) =>
+      truncateTo(precision)
+          .diff(
+            other.truncateTo(precision),
+            precision.toUnit,
+          )
+          .toInt();
 
   /// Gets the nearest precision boundary.
   Hora nearestBoundary(TimePrecision precision) => roundTo(precision);

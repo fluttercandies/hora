@@ -31,8 +31,18 @@ void main() {
       test('overrides months', () {
         final base = const HoraLocaleEn();
         final customMonths = [
-          'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+          'Jan',
+          'Feb',
+          'Mar',
+          'Apr',
+          'May',
+          'Jun',
+          'Jul',
+          'Aug',
+          'Sep',
+          'Oct',
+          'Nov',
+          'Dec',
         ];
         final updated = UpdatedLocale(base, months: customMonths);
 
@@ -63,9 +73,8 @@ void main() {
 
       test('multiple updates chain correctly', () {
         final base = const HoraLocaleEn();
-        final updated = base
-            .update(weekStart: DateTime.monday)
-            .update(code: 'en-custom');
+        final updated =
+            base.update(weekStart: DateTime.monday).update(code: 'en-custom');
 
         expect(updated.weekStart, equals(DateTime.monday));
         expect(updated.code, equals('en-custom'));
@@ -119,8 +128,18 @@ void main() {
       test('updated locale works with Hora', () {
         final customLocale = const HoraLocaleEn().update(
           months: [
-            'Month1', 'Month2', 'Month3', 'Month4', 'Month5', 'Month6',
-            'Month7', 'Month8', 'Month9', 'Month10', 'Month11', 'Month12',
+            'Month1',
+            'Month2',
+            'Month3',
+            'Month4',
+            'Month5',
+            'Month6',
+            'Month7',
+            'Month8',
+            'Month9',
+            'Month10',
+            'Month11',
+            'Month12',
           ],
         );
 

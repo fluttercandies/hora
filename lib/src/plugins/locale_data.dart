@@ -118,13 +118,16 @@ extension LocaleDataExt on Hora {
   String get monthNameShort => locale.monthsShort[month - 1];
 
   /// Gets the full name of the weekday.
-  String get weekdayName => locale.weekdays[weekday];
+  ///
+  /// Converts Dart's weekday (1=Monday to 7=Sunday) to locale's weekdays list
+  /// which starts from Sunday (index 0).
+  String get weekdayName => locale.weekdays[weekday % 7];
 
   /// Gets the short name of the weekday.
-  String get weekdayNameShort => locale.weekdaysShort[weekday];
+  String get weekdayNameShort => locale.weekdaysShort[weekday % 7];
 
   /// Gets the minimal name of the weekday.
-  String get weekdayNameMin => locale.weekdaysMin[weekday];
+  String get weekdayNameMin => locale.weekdaysMin[weekday % 7];
 
   /// Gets the ordinal suffix for the day.
   String get dayOrdinal => locale.ordinal(day);

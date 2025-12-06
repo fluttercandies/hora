@@ -82,14 +82,10 @@ class HoraLocaleEn extends HoraLocale {
   int get yearStart => 1;
 
   @override
-  HoraFormats get formats => const HoraFormats(
-        
-      );
+  HoraFormats get formats => const HoraFormats();
 
   @override
-  HoraRelativeTime get relativeTime => const HoraRelativeTime(
-        
-      );
+  HoraRelativeTime get relativeTime => const HoraRelativeTime();
 
   @override
   String ordinal(int n, [String? unit]) {

@@ -96,7 +96,8 @@ void main() {
     });
 
     test('getOrDefault returns fallback for unknown', () {
-      final fallback = HoraLocales.getOrDefault('unknown', const HoraLocaleEn());
+      final fallback =
+          HoraLocales.getOrDefault('unknown', const HoraLocaleEn());
       expect(fallback.code, 'en');
     });
 
@@ -187,14 +188,18 @@ void main() {
 
     test('format uses locale weekday names', () {
       // 2023-12-25 is Monday
-      final h =
-          Hora.of(year: 2023, month: 12, day: 25, locale: const HoraLocaleZhCn());
+      final h = Hora.of(
+          year: 2023, month: 12, day: 25, locale: const HoraLocaleZhCn(),);
       expect(h.format('dddd'), '星期一');
     });
 
     test('format uses locale meridiem', () {
-      final h =
-          Hora.of(year: 2023, month: 12, day: 25, hour: 14, locale: const HoraLocaleZhCn());
+      final h = Hora.of(
+          year: 2023,
+          month: 12,
+          day: 25,
+          hour: 14,
+          locale: const HoraLocaleZhCn(),);
       expect(h.format('A'), '下午');
     });
 

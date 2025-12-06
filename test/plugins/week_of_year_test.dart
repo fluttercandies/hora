@@ -123,7 +123,7 @@ void main() {
       final h = Hora.of(year: 2024);
       final weeks = h.weeksInThisYear.toList();
       expect(weeks.length, inInclusiveRange(52, 53));
-      
+
       for (final w in weeks) {
         expect(w.isoWeekYear, 2024);
       }

@@ -27,7 +27,7 @@ void main() {
         final h = Hora.of(year: 2024, month: 3, day: 15);
         final cal = h.monthCalendar();
         final allDays = cal.weeks.expand((w) => w).whereType<Hora>().toList();
-        
+
         expect(allDays.length, 31); // March has 31 days
       });
     });
@@ -53,7 +53,8 @@ void main() {
     group('daysOfMonth', () {
       test('returns all days in month', () {
         expect(Hora.of(year: 2024, month: 3).daysOfMonth.length, 31);
-        expect(Hora.of(year: 2024, month: 2).daysOfMonth.length, 29); // leap year
+        expect(
+            Hora.of(year: 2024, month: 2).daysOfMonth.length, 29,); // leap year
         expect(Hora.of(year: 2023, month: 2).daysOfMonth.length, 28);
       });
     });
@@ -69,7 +70,7 @@ void main() {
       test('finds first Monday in March 2024', () {
         final h = Hora.of(year: 2024, month: 3, day: 15);
         final first = h.firstWeekdayInMonth(DateTime.monday);
-        
+
         expect(first.day, 4);
         expect(first.weekday, DateTime.monday);
       });
@@ -79,7 +80,7 @@ void main() {
       test('finds last Friday in March 2024', () {
         final h = Hora.of(year: 2024, month: 3, day: 15);
         final last = h.lastWeekdayInMonth(DateTime.friday);
-        
+
         expect(last.day, 29);
         expect(last.weekday, DateTime.friday);
       });
@@ -107,7 +108,7 @@ void main() {
     test('daysUntil generates range', () {
       final start = Hora.of(year: 2024, month: 3);
       final end = Hora.of(year: 2024, month: 3, day: 5);
-      
+
       expect(start.daysUntil(end).length, 5);
       expect(start.daysUntil(end, inclusive: false).length, 4);
     });

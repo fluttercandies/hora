@@ -194,7 +194,7 @@ void main() {
     test('between returns occurrences in range', () {
       final start = Hora.of(year: 2024, month: 3);
       final rec = Recurrence.daily(start: start);
-      
+
       final rangeStart = Hora.of(year: 2024, month: 3, day: 5);
       final rangeEnd = Hora.of(year: 2024, month: 3, day: 10);
       final result = rec.between(rangeStart, rangeEnd);

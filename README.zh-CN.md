@@ -81,7 +81,7 @@ void main() {
 ```dart
 // 当前时间
 Hora.now()
-Hora.now(utc: true)
+Hora.nowUtc()
 
 // 从组件创建
 Hora.of(year: 2024, month: 6, day: 15)
@@ -91,8 +91,8 @@ Hora.of(year: 2024, month: 6, day: 15, hour: 10, minute: 30, second: 45)
 Hora.fromDateTime(DateTime.now())
 
 // 从时间戳创建
-Hora.fromUnix(1718409600)
-Hora.fromUnixMillis(1718409600000)
+Hora.unix(1718409600)
+Hora.unixMillis(1718409600000)
 
 // 解析字符串
 Hora.parse('2024-06-15')
@@ -236,16 +236,21 @@ h.toIso8601()                    // 2024-06-15T14:30:00.000
 ### 相对时间
 
 ```dart
-// 相对于现在
+// 相对于现在（通过扩展方法）
 past.fromNow()    // "3天前"
 future.fromNow()  // "2小时内"
 
-// 自定义参考点
+// 相对于另一个日期
 h1.from(h2)       // "5天前"
 h1.to(h2)         // "5天内"
 
 // 不带前缀/后缀
 past.fromNow(withoutSuffix: true)  // "3天"
+
+// 高级相对时间（通过 relative_time 插件）
+import 'package:hora/src/plugins/relative_time.dart';
+
+past.relativeFromNow()    // "3天前"（更多选项）
 ```
 
 ### 日历格式
@@ -458,8 +463,8 @@ Duration(days: 5).toHoraDuration()
 '2024-06-15'.toHora()
 
 // 整数时间戳
-1718409600.toHoraFromUnix()
-1718409600000.toHoraFromUnixMillis()
+1718409600.asUnixSeconds
+1718409600000.asUnixMillis
 
 // 范围生成
 start.rangeTo(end, step: TemporalUnit.day)  // Iterable<Hora>
@@ -471,9 +476,9 @@ start.take(10, step: TemporalUnit.day)      // 连续10天
 
 // 构建器方法
 Hora.now()
-    .atStartOfDay()
-    .atMonth(6)
-    .atYear(2024)
+    .startOf(TemporalUnit.day)
+    .copyWith(month: 6)
+    .copyWith(year: 2024)
 ```
 
 ## 插件

@@ -80,7 +80,9 @@ class HoraObject {
         DateTime.now().year;
     final month = _getInt(map, [DateTimeKeys.month, DateTimeKeys.months]) ?? 1;
     final day = _getInt(
-            map, [DateTimeKeys.day, DateTimeKeys.days, DateTimeKeys.date],) ??
+          map,
+          [DateTimeKeys.day, DateTimeKeys.days, DateTimeKeys.date],
+        ) ??
         1;
     final hour = _getInt(map, [DateTimeKeys.hour, DateTimeKeys.hours]) ?? 0;
     final minute =
@@ -216,7 +218,9 @@ extension ObjectSupportExtension on Hora {
         year: _getInt(map, [DateTimeKeys.year, DateTimeKeys.years]),
         month: _getInt(map, [DateTimeKeys.month, DateTimeKeys.months]),
         day: _getInt(
-            map, [DateTimeKeys.day, DateTimeKeys.days, DateTimeKeys.date],),
+          map,
+          [DateTimeKeys.day, DateTimeKeys.days, DateTimeKeys.date],
+        ),
         hour: _getInt(map, [DateTimeKeys.hour, DateTimeKeys.hours]),
         minute: _getInt(map, [DateTimeKeys.minute, DateTimeKeys.minutes]),
         second: _getInt(map, [DateTimeKeys.second, DateTimeKeys.seconds]),

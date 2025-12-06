@@ -91,30 +91,30 @@ void main() {
     });
   });
 
-  group('HoraDurationFactoryExt', () {
-    test('parse ISO 8601', () {
-      final d = HoraDurationFactoryExt.parse('PT1H30M');
+  group('HoraDurationFactory', () {
+    test('parse ISO 8601 (using core HoraDuration.parse)', () {
+      final d = HoraDuration.parse('PT1H30M');
       expect(d.hours, 1);
       expect(d.minutes, 30);
     });
 
     test('parse with days', () {
-      final d = HoraDurationFactoryExt.parse('P1DT2H');
+      final d = HoraDuration.parse('P1DT2H');
       expect(d.days, 1);
       expect(d.hours, 2);
     });
 
     test('tryParse returns null for invalid', () {
-      expect(HoraDurationFactoryExt.tryParse('invalid'), isNull);
+      expect(HoraDuration.tryParse('invalid'), isNull);
     });
 
     test('fromHours', () {
-      final d = HoraDurationFactoryExt.fromHours(2.5);
+      final d = HoraDurationFactory.fromHours(2.5);
       expect(d.totalHours, closeTo(2.5, 0.01));
     });
 
     test('fromMinutes', () {
-      final d = HoraDurationFactoryExt.fromMinutes(90);
+      final d = HoraDurationFactory.fromMinutes(90);
       expect(d.totalMinutes, closeTo(90, 0.1));
     });
   });

@@ -29,7 +29,8 @@ void main() {
       });
 
       test('parses full datetime', () {
-        final h = HoraParser.parse('2024-03-15 14:30:45', 'YYYY-MM-DD HH:mm:ss');
+        final h =
+            HoraParser.parse('2024-03-15 14:30:45', 'YYYY-MM-DD HH:mm:ss');
         expect(h.isValid, isTrue);
         expect(h.year, 2024);
         expect(h.month, 3);
@@ -63,7 +64,8 @@ void main() {
       });
 
       test('returns null for invalid input in strict mode', () {
-        expect(HoraParser.tryParse('invalid', 'YYYY-MM-DD', strict: true), isNull);
+        expect(
+            HoraParser.tryParse('invalid', 'YYYY-MM-DD', strict: true), isNull,);
       });
     });
 

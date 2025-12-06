@@ -95,8 +95,10 @@ extension RelativeTimePluginExt on Hora {
   /// - "a few seconds ago"
   /// - "5 minutes ago"
   /// - "in 2 hours"
-  String relativeFromNow(
-      {RelativeTimeConfig config = RelativeTimeConfig.defaultConfig,}) => relativeFrom(Hora.now(locale: locale), config: config);
+  String relativeFromNow({
+    RelativeTimeConfig config = RelativeTimeConfig.defaultConfig,
+  }) =>
+      relativeFrom(Hora.now(locale: locale), config: config);
 
   /// Gets the relative time from another date.
   String relativeFrom(
@@ -112,14 +114,17 @@ extension RelativeTimePluginExt on Hora {
   }
 
   /// Gets the relative time to now.
-  String relativeToNow(
-      {RelativeTimeConfig config = RelativeTimeConfig.defaultConfig,}) => relativeTo(Hora.now(locale: locale), config: config);
+  String relativeToNow({
+    RelativeTimeConfig config = RelativeTimeConfig.defaultConfig,
+  }) =>
+      relativeTo(Hora.now(locale: locale), config: config);
 
   /// Gets the relative time to another date.
   String relativeTo(
     Hora other, {
     RelativeTimeConfig config = RelativeTimeConfig.defaultConfig,
-  }) => other.relativeFrom(this, config: config);
+  }) =>
+      other.relativeFrom(this, config: config);
 
   /// Gets a short relative time string.
   ///

@@ -81,7 +81,7 @@ void main() {
 ```dart
 // Current time
 Hora.now()
-Hora.now(utc: true)
+Hora.nowUtc()
 
 // From components
 Hora.of(year: 2024, month: 6, day: 15)
@@ -91,8 +91,8 @@ Hora.of(year: 2024, month: 6, day: 15, hour: 10, minute: 30, second: 45)
 Hora.fromDateTime(DateTime.now())
 
 // From timestamp
-Hora.fromUnix(1718409600)
-Hora.fromUnixMillis(1718409600000)
+Hora.unix(1718409600)
+Hora.unixMillis(1718409600000)
 
 // Parse string
 Hora.parse('2024-06-15')
@@ -236,16 +236,21 @@ h.toIso8601()                    // 2024-06-15T14:30:00.000
 ### Relative Time
 
 ```dart
-// From now
+// From now (via extensions)
 past.fromNow()    // "3 days ago"
 future.fromNow()  // "in 2 hours"
 
-// Custom reference
+// From/to another date
 h1.from(h2)       // "5 days ago"
 h1.to(h2)         // "in 5 days"
 
 // Without suffix
 past.fromNow(withoutSuffix: true)  // "3 days"
+
+// Advanced relative time (via relative_time plugin)
+import 'package:hora/src/plugins/relative_time.dart';
+
+past.relativeFromNow()    // "3 days ago" (with more options)
 ```
 
 ### Calendar Format
@@ -459,8 +464,8 @@ Duration(days: 5).toHoraDuration()
 '2024-06-15'.toHora()
 
 // Int timestamps
-1718409600.toHoraFromUnix()
-1718409600000.toHoraFromUnixMillis()
+1718409600.asUnixSeconds
+1718409600000.asUnixMillis
 
 // Range generation
 start.rangeTo(end, step: TemporalUnit.day)  // Iterable<Hora>
@@ -472,9 +477,9 @@ start.take(10, step: TemporalUnit.day)      // 10 consecutive days
 
 // Builder methods
 Hora.now()
-    .atStartOfDay()
-    .atMonth(6)
-    .atYear(2024)
+    .startOf(TemporalUnit.day)
+    .copyWith(month: 6)
+    .copyWith(year: 2024)
 ```
 
 ## Plugins

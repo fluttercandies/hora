@@ -85,17 +85,18 @@ extension HoraBuddhistEraFactory on Hora {
     int millisecond = 0,
     int microsecond = 0,
     bool utc = false,
-  }) => Hora.of(
-      year: year - 543,
-      month: month,
-      day: day,
-      hour: hour,
-      minute: minute,
-      second: second,
-      millisecond: millisecond,
-      microsecond: microsecond,
-      utc: utc,
-    );
+  }) =>
+      Hora.of(
+        year: year - 543,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        second: second,
+        millisecond: millisecond,
+        microsecond: microsecond,
+        utc: utc,
+      );
 }
 
 /// Alternative calendar era systems.
@@ -117,11 +118,11 @@ enum CalendarEra {
 extension MultiEraCalendarExt on Hora {
   /// Returns the year in the specified calendar era.
   int yearIn(CalendarEra era) => switch (era) {
-      CalendarEra.common => year,
-      CalendarEra.buddhist => year + 543,
-      CalendarEra.japanese => _japaneseEraYear(),
-      CalendarEra.minguo => year - 1911,
-    };
+        CalendarEra.common => year,
+        CalendarEra.buddhist => year + 543,
+        CalendarEra.japanese => _japaneseEraYear(),
+        CalendarEra.minguo => year - 1911,
+      };
 
   int _japaneseEraYear() {
     // Reiwa era started on May 1, 2019
