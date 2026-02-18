@@ -1,0 +1,23 @@
+name: Dart CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  quality:
+    name: Quality Gate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Dart
+        uses: dart-lang/setup-dart@v1
+
+      - name: Quality gate (format/analyze/test/publish dry-run)
+        run: ./tool/quality_gate.sh --publish-dry-run

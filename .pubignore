@@ -9,12 +9,20 @@ scripts/
 # Build and cache files
 .dart_tool/
 build/
+coverage/
 
 # Test files (optional - pub.dev recommends including tests)
 # test/
 
 # CI/CD files
 .github/
+
+# Local agent/runtime files
+.claude/
+AGENTS.md
+
+# Generated docs artifacts
+doc/api/
 
 # OS generated files
 .DS_Store
