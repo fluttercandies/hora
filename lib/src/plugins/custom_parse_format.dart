@@ -105,6 +105,7 @@ class HoraParser {
     try {
       final result = _parseWithFormat(input, format, locale, strict);
       if (result == null) return null;
+      if (!result.hasParsedToken) return null;
 
       // Handle 12-hour format
       var adjustedHour = result.hour ?? 0;
@@ -116,14 +117,40 @@ class HoraParser {
         }
       }
 
+      if (!_validateParsedComponents(result, adjustedHour)) {
+        return null;
+      }
+
+      final resolvedYear = result.year ?? DateTime.now().year;
+      final resolvedMonth = result.month ?? 1;
+      final resolvedDay = result.day ?? 1;
+      final resolvedMinute = result.minute ?? 0;
+      final resolvedSecond = result.second ?? 0;
+      final resolvedMillisecond = result.millisecond ?? 0;
+
+      // When a timezone offset is provided (including +00:00 / Z),
+      // build UTC time first, then apply parsed offset.
+      if (result.tzOffsetMinutes != null) {
+        final utcDt = DateTime.utc(
+          resolvedYear,
+          resolvedMonth,
+          resolvedDay,
+          adjustedHour,
+          resolvedMinute,
+          resolvedSecond,
+          resolvedMillisecond,
+        ).subtract(Duration(minutes: result.tzOffsetMinutes!));
+        return Hora.fromDateTime(utcDt, locale: locale);
+      }
+
       return Hora.of(
-        year: result.year ?? DateTime.now().year,
-        month: result.month ?? 1,
-        day: result.day ?? 1,
+        year: resolvedYear,
+        month: resolvedMonth,
+        day: resolvedDay,
         hour: adjustedHour,
-        minute: result.minute ?? 0,
-        second: result.second ?? 0,
-        millisecond: result.millisecond ?? 0,
+        minute: resolvedMinute,
+        second: resolvedSecond,
+        millisecond: resolvedMillisecond,
         utc: result.isUtc,
         locale: locale,
       );
@@ -164,6 +191,54 @@ class HoraParser {
     return null;
   }
 
+  static bool _validateParsedComponents(
+    _ParsedComponents components,
+    int adjustedHour,
+  ) {
+    final year = components.year ?? DateTime.now().year;
+    final month = components.month ?? 1;
+    final day = components.day ?? 1;
+    final minute = components.minute ?? 0;
+    final second = components.second ?? 0;
+    final millisecond = components.millisecond ?? 0;
+
+    if (components.is12Hour && components.hour != null) {
+      final parsed12Hour = components.hour!;
+      if (parsed12Hour < 1 || parsed12Hour > 12) return false;
+    }
+    if (!components.is12Hour && components.hour != null) {
+      final parsed24Hour = components.hour!;
+      if (parsed24Hour < 0 || parsed24Hour > 23) return false;
+    }
+
+    if (adjustedHour < 0 || adjustedHour > 23) return false;
+    if (minute < 0 || minute > 59) return false;
+    if (second < 0 || second > 59) return false;
+    if (millisecond < 0 || millisecond > 999) return false;
+
+    if (!_isValidCalendarDate(year, month, day)) return false;
+
+    final offsetMinutes = components.tzOffsetMinutes;
+    if (offsetMinutes != null) {
+      final absOffset = offsetMinutes.abs();
+      final hours = absOffset ~/ 60;
+      final minutes = absOffset % 60;
+      if (hours > 23 || minutes > 59) return false;
+    }
+
+    return true;
+  }
+
+  static bool _isValidCalendarDate(int year, int month, int day) {
+    if (month < 1 || month > 12 || day < 1) return false;
+    try {
+      final date = DateTime(year, month, day);
+      return date.year == year && date.month == month && date.day == day;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static _ParsedComponents? _parseWithFormat(
     String input,
     String format,
@@ -174,27 +249,36 @@ class HoraParser {
     var inputIndex = 0;
     var formatIndex = 0;
 
-    while (formatIndex < format.length && inputIndex < input.length) {
+    while (formatIndex < format.length) {
       // Handle escaped text [...]
       if (format[formatIndex] == '[') {
         final closeIndex = format.indexOf(']', formatIndex);
-        if (closeIndex != -1) {
-          final escaped = format.substring(formatIndex + 1, closeIndex);
-          if (!input.substring(inputIndex).startsWith(escaped)) {
-            if (strict) return null;
-          } else {
-            inputIndex += escaped.length;
-          }
-          formatIndex = closeIndex + 1;
+        if (closeIndex == -1) {
+          if (strict) return null;
+          formatIndex++;
           continue;
         }
+
+        final escaped = format.substring(formatIndex + 1, closeIndex);
+        final canMatchEscaped = inputIndex + escaped.length <= input.length &&
+            input.startsWith(escaped, inputIndex);
+
+        if (!canMatchEscaped) {
+          if (strict) return null;
+        } else {
+          inputIndex += escaped.length;
+        }
+        formatIndex = closeIndex + 1;
+        continue;
       }
 
       // Try to match tokens
       final token = _matchToken(format.substring(formatIndex));
       if (token != null) {
+        final remainingInput =
+            inputIndex < input.length ? input.substring(inputIndex) : '';
         final consumed = _parseToken(
-          input.substring(inputIndex),
+          remainingInput,
           token,
           locale,
           components,
@@ -204,11 +288,13 @@ class HoraParser {
           formatIndex++;
           continue;
         }
+        components.hasParsedToken = true;
         inputIndex += consumed;
         formatIndex += token.length;
       } else {
         // Match literal character
-        if (format[formatIndex] == input[inputIndex]) {
+        final hasInput = inputIndex < input.length;
+        if (hasInput && format[formatIndex] == input[inputIndex]) {
           formatIndex++;
           inputIndex++;
         } else if (strict) {
@@ -219,8 +305,8 @@ class HoraParser {
       }
     }
 
-    // Check if we consumed all input in strict mode
-    if (strict && inputIndex < input.length) {
+    // Strict mode requires full input consumption and full format consumption.
+    if (strict && inputIndex != input.length) {
       return null;
     }
 
@@ -393,13 +479,25 @@ class HoraParser {
         return null;
 
       case 'Z':
-        final match = RegExp(r'^[+-]\d{2}:\d{2}').firstMatch(input);
+        // Match +HH:MM, -HH:MM, +HHMM, -HHMM, or Z for UTC.
+        if (input.startsWith('Z') || input.startsWith('z')) {
+          components
+            ..isUtc = true
+            ..tzOffsetMinutes = 0;
+          return 1;
+        }
+        final match = RegExp(r'^([+-])(\d{2}):?(\d{2})').firstMatch(input);
         if (match == null) return null;
-        components.isUtc = match.group(0) == '+00:00';
-        return 6;
+        final sign = match.group(1) == '-' ? -1 : 1;
+        final hours = int.parse(match.group(2)!);
+        final mins = int.parse(match.group(3)!);
+        if (hours > 23 || mins > 59) return null;
+        components.tzOffsetMinutes = sign * (hours * 60 + mins);
+        components.isUtc = components.tzOffsetMinutes == 0;
+        return match.group(0)!.length;
 
       case 'X':
-        final match = RegExp(r'^\d+').firstMatch(input);
+        final match = RegExp(r'^[+-]?\d+').firstMatch(input);
         if (match == null) return null;
         final unix = int.parse(match.group(0)!);
         final dt = DateTime.fromMillisecondsSinceEpoch(unix * 1000);
@@ -413,7 +511,7 @@ class HoraParser {
         return match.group(0)!.length;
 
       case 'x':
-        final match = RegExp(r'^\d+').firstMatch(input);
+        final match = RegExp(r'^[+-]?\d+').firstMatch(input);
         if (match == null) return null;
         final millis = int.parse(match.group(0)!);
         final dt = DateTime.fromMillisecondsSinceEpoch(millis);
@@ -444,25 +542,32 @@ class _ParsedComponents {
   bool isUtc = false;
   bool is12Hour = false;
   bool isPM = false;
+
+  /// Timezone offset in minutes (null = no offset parsed).
+  int? tzOffsetMinutes;
+
+  /// Whether any parse token successfully consumed input.
+  bool hasParsedToken = false;
 }
 
-/// Extension for Hora providing custom format parsing.
-extension HoraCustomParseExt on Hora {
-  /// Creates a Hora from a string using a custom format.
-  static Hora parseFormat(
-    String input,
-    String format, {
-    HoraLocale? locale,
-    bool strict = false,
-  }) =>
-      HoraParser.parse(input, format, locale: locale, strict: strict);
+/// Creates a Hora from a string using a custom format.
+///
+/// Returns an invalid Hora if parsing fails.
+Hora horaParseFormat(
+  String input,
+  String format, {
+  HoraLocale? locale,
+  bool strict = false,
+}) =>
+    HoraParser.parse(input, format, locale: locale, strict: strict);
 
-  /// Tries to parse a string using a custom format.
-  static Hora? tryParseFormat(
-    String input,
-    String format, {
-    HoraLocale? locale,
-    bool strict = false,
-  }) =>
-      HoraParser.tryParse(input, format, locale: locale, strict: strict);
-}
+/// Tries to parse a string using a custom format.
+///
+/// Returns null if parsing fails.
+Hora? horaTryParseFormat(
+  String input,
+  String format, {
+  HoraLocale? locale,
+  bool strict = false,
+}) =>
+    HoraParser.tryParse(input, format, locale: locale, strict: strict);

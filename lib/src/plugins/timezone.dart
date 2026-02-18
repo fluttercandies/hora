@@ -1,80 +1,153 @@
 /// Timezone plugin for Hora.
 ///
-/// Provides timezone conversion and awareness.
-///
-/// ## Usage
-///
-/// ```dart
-/// import 'package:hora/hora.dart';
-/// import 'package:hora/src/plugins/timezone.dart';
-///
-/// // Create a timezone
-/// final nyc = HoraTimezone.fromOffset(-5);
-/// final tokyo = HoraTimezone.fromOffset(9);
-///
-/// // Convert between timezones
-/// final now = Hora.now();
-/// final nycTime = now.inTimezone(nyc);
-/// final tokyoTime = now.inTimezone(tokyo);
-///
-/// // Get timezone offset
-/// print(now.utcOffset); // e.g., Duration(hours: -8)
-/// ```
-///
-/// Note: This is a simplified timezone implementation.
-/// For full timezone database support, consider using
-/// the `timezone` package.
+/// Provides fixed-offset timezone parsing, instant-to-timezone projection,
+/// and wall-clock reinterpretation utilities.
 library;
+
+import 'dart:collection';
 
 import 'package:meta/meta.dart';
 
 import '../hora.dart';
 
-/// Represents a timezone with a fixed UTC offset.
-///
-/// This is a simplified representation. For full timezone
-/// support with DST handling, use the `timezone` package.
+/// Represents a fixed-offset timezone.
 @immutable
 class HoraTimezone {
   const HoraTimezone._(this.offset, this._name);
 
-  /// Creates a timezone from a UTC offset in hours.
-  factory HoraTimezone.fromOffset(int hours, [int minutes = 0]) {
-    final offset = Duration(hours: hours, minutes: minutes);
-    final sign = hours >= 0 ? '+' : '';
-    final name = minutes == 0
-        ? 'UTC$sign$hours'
-        : 'UTC$sign$hours:${minutes.abs().toString().padLeft(2, '0')}';
-    return HoraTimezone._(offset, name);
+  /// Creates a timezone from UTC offset hours and minutes.
+  factory HoraTimezone.fromOffset(
+    int hours, {
+    int minutes = 0,
+    String? name,
+  }) {
+    if (hours.abs() > 23) {
+      throw ArgumentError.value(
+        hours,
+        'hours',
+        'Timezone hour offset must be in -23..23.',
+      );
+    }
+    if (minutes.abs() > 59) {
+      throw ArgumentError.value(
+        minutes,
+        'minutes',
+        'Timezone minute offset must be in -59..59.',
+      );
+    }
+    if (hours != 0 &&
+        minutes != 0 &&
+        ((hours > 0 && minutes < 0) || (hours < 0 && minutes > 0))) {
+      throw ArgumentError.value(
+        minutes,
+        'minutes',
+        'Minute offset sign must match hour offset sign.',
+      );
+    }
+
+    final totalMinutes = switch ((hours, minutes)) {
+      (0, final m) => m,
+      (final h, final m) when h < 0 => h * 60 - m.abs(),
+      (final h, final m) => h * 60 + m.abs(),
+    };
+
+    return HoraTimezone.fromMinutes(totalMinutes, name: name);
   }
 
-  /// Creates a timezone from a total offset in minutes.
-  factory HoraTimezone.fromMinutes(int totalMinutes) {
-    final hours = totalMinutes ~/ 60;
-    final minutes = totalMinutes.abs() % 60;
-    return HoraTimezone.fromOffset(hours, minutes);
+  /// Creates a timezone from total offset minutes.
+  factory HoraTimezone.fromMinutes(int totalMinutes, {String? name}) {
+    const maxOffsetMinutes = 23 * 60 + 59;
+    if (totalMinutes.abs() > maxOffsetMinutes) {
+      throw ArgumentError.value(
+        totalMinutes,
+        'totalMinutes',
+        'Timezone offset must be in -1439..1439 minutes.',
+      );
+    }
+
+    final offset = Duration(minutes: totalMinutes);
+    return HoraTimezone._(offset, name ?? _nameFromOffset(offset));
   }
 
-  /// Parses a timezone string like "+05:30" or "-08:00".
+  /// Parses timezone text.
+  ///
+  /// Supported examples:
+  /// - `Z`, `UTC`, `GMT`
+  /// - `UTC+08`, `GMT-05:30`
+  /// - `+08`, `-0530`, `+05:30`
+  /// - Common abbreviations in [common], such as `JST`, `PST`, `CET`
   factory HoraTimezone.parse(String input) {
-    final pattern = RegExp(r'^([+-]?)(\d{1,2}):?(\d{2})?$');
-    final match = pattern.firstMatch(input.trim());
+    final normalized = input.trim();
+    if (normalized.isEmpty) {
+      throw const FormatException('Invalid timezone format: empty input');
+    }
+
+    final upper = normalized.toUpperCase();
+    if (upper == 'Z' || upper == 'UTC' || upper == 'GMT') {
+      return utc;
+    }
+
+    final fromCommon = common[upper];
+    if (fromCommon != null) {
+      return fromCommon;
+    }
+
+    var core = upper;
+    if (core.startsWith('UTC') || core.startsWith('GMT')) {
+      core = core.substring(3).trim();
+      if (core.isEmpty) return utc;
+    }
+
+    final compact = core.replaceAll(' ', '');
+    final match =
+        RegExp(r'^([+-])?(\d{1,2})(?::?(\d{2}))?$').firstMatch(compact);
     if (match == null) {
       throw FormatException('Invalid timezone format: $input');
     }
 
     final sign = match.group(1) == '-' ? -1 : 1;
-    final hours = int.parse(match.group(2)!) * sign;
-    final minutes = match.group(3) != null ? int.parse(match.group(3)!) : 0;
+    final hours = int.parse(match.group(2)!);
+    final minutes = match.group(3) == null ? 0 : int.parse(match.group(3)!);
 
-    return HoraTimezone.fromOffset(hours, minutes);
+    if (hours > 23 || minutes > 59) {
+      throw FormatException(
+        'Invalid timezone format: $input. '
+        'Hour must be 0..23 and minute must be 0..59.',
+      );
+    }
+
+    return HoraTimezone.fromMinutes(
+      sign * (hours * 60 + minutes),
+      name: core.startsWith('+') || core.startsWith('-')
+          ? _nameFromOffset(Duration(minutes: sign * (hours * 60 + minutes)))
+          : null,
+    );
+  }
+
+  /// Creates local system timezone at [at] instant (uses system/DST rules).
+  factory HoraTimezone.local([DateTime? at]) {
+    final dt = (at ?? DateTime.now()).toLocal();
+    final name = dt.timeZoneName.trim();
+    return HoraTimezone.fromMinutes(
+      dt.timeZoneOffset.inMinutes,
+      name: name.isEmpty ? null : name,
+    );
+  }
+
+  /// Parses timezone text and returns null instead of throwing.
+  static HoraTimezone? tryParse(String input) {
+    try {
+      return HoraTimezone.parse(input);
+    } catch (_) {
+      return null;
+    }
   }
 
   /// UTC timezone.
   static const utc = HoraTimezone._(Duration.zero, 'UTC');
 
-  /// Common timezone abbreviations (simplified, no DST).
-  static final Map<String, HoraTimezone> common = {
+  /// Common timezone abbreviations (fixed offsets only, no IANA database).
+  static final Map<String, HoraTimezone> common = UnmodifiableMapView({
     'UTC': utc,
     'GMT': utc,
     'EST': HoraTimezone.fromOffset(-5),
@@ -88,35 +161,52 @@ class HoraTimezone {
     'JST': HoraTimezone.fromOffset(9),
     'KST': HoraTimezone.fromOffset(9),
     'CST_CN': HoraTimezone.fromOffset(8),
-    'IST': HoraTimezone.fromOffset(5, 30),
+    'IST': HoraTimezone.fromOffset(5, minutes: 30),
     'AEST': HoraTimezone.fromOffset(10),
     'AEDT': HoraTimezone.fromOffset(11),
     'CET': HoraTimezone.fromOffset(1),
     'CEST': HoraTimezone.fromOffset(2),
-    'WET': HoraTimezone.fromOffset(0),
+    'WET': HoraTimezone.utc,
     'WEST': HoraTimezone.fromOffset(1),
-  };
+  });
 
-  /// The UTC offset.
+  /// UTC offset.
   final Duration offset;
 
   final String _name;
 
-  /// The timezone name/identifier.
+  /// Display name or identifier.
   String get name => _name;
 
-  /// The offset in hours (may be fractional).
+  /// Whether offset is UTC.
+  bool get isUtc => offset == Duration.zero;
+
+  /// Offset in hours (fractional if needed).
   double get offsetHours => offset.inMinutes / 60;
 
-  /// The offset in minutes.
+  /// Offset in minutes.
   int get offsetMinutes => offset.inMinutes;
 
-  /// Formats the offset as a string like "+05:30".
+  /// Formats offset as `+HH:mm`.
   String get offsetString {
     final hours = offset.inHours.abs();
     final minutes = offset.inMinutes.abs() % 60;
     final sign = offset.isNegative ? '-' : '+';
     return '$sign${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
+  }
+
+  static String _nameFromOffset(Duration offset) {
+    if (offset == Duration.zero) return 'UTC';
+
+    final sign = offset.isNegative ? '-' : '+';
+    final absOffset = offset.abs();
+    final hours = absOffset.inHours;
+    final minutes = absOffset.inMinutes % 60;
+
+    if (minutes == 0) {
+      return 'UTC$sign$hours';
+    }
+    return 'UTC$sign$hours:${minutes.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -130,143 +220,271 @@ class HoraTimezone {
   String toString() => name;
 }
 
-/// Extension providing timezone operations for Hora.
-extension TimezoneExt on Hora {
-  /// Gets the UTC offset of this date.
-  Duration get utcOffset {
-    if (isUtc) return Duration.zero;
-    return toDateTime().timeZoneOffset;
-  }
+/// A timezone-aware view of an instant.
+@immutable
+class HoraZoned implements Comparable<HoraZoned> {
+  HoraZoned(Hora instant, this.timezone)
+      : instantUtc = (() {
+          if (!instant.isValid) {
+            throw ArgumentError.value(
+              instant,
+              'instant',
+              'HoraZoned requires a valid Hora instant.',
+            );
+          }
+          return instant.toUtc();
+        })();
 
-  /// Gets the timezone name of this date.
-  String get timezoneName {
-    if (isUtc) return 'UTC';
-    return toDateTime().timeZoneName;
-  }
+  /// The original instant normalized to UTC.
+  final Hora instantUtc;
 
-  /// Converts this date to UTC.
-  Hora toUtc() {
-    if (isUtc) return this;
-    return Hora.fromDateTime(toDateTime().toUtc(), locale: locale);
-  }
+  /// The fixed-offset timezone used for wall-clock projection.
+  final HoraTimezone timezone;
 
-  /// Converts this date to local time.
-  Hora toLocal() {
-    if (!isUtc) return this;
-    return Hora.fromDateTime(toDateTime().toLocal(), locale: locale);
-  }
+  DateTime get _wallClockUtcDateTime => DateTime.fromMicrosecondsSinceEpoch(
+        instantUtc.unixMicros + timezone.offset.inMicroseconds,
+        isUtc: true,
+      );
 
-  /// Converts this date to a specific timezone.
-  Hora inTimezone(HoraTimezone tz) {
-    // First convert to UTC
-    final utcTime = isUtc ? this : toUtc();
+  /// Wall-clock time in [timezone], represented as a UTC-based Hora container.
+  Hora get wallClock => Hora.fromDateTime(
+        _wallClockUtcDateTime,
+        locale: instantUtc.locale,
+      );
 
-    // Then apply the target timezone offset
-    final targetMs = utcTime.unixMillis + tz.offset.inMilliseconds;
-    final dt = DateTime.fromMillisecondsSinceEpoch(targetMs, isUtc: true);
+  int get year => _wallClockUtcDateTime.year;
+  int get month => _wallClockUtcDateTime.month;
+  int get day => _wallClockUtcDateTime.day;
+  int get weekday => _wallClockUtcDateTime.weekday;
+  int get hour => _wallClockUtcDateTime.hour;
+  int get minute => _wallClockUtcDateTime.minute;
+  int get second => _wallClockUtcDateTime.second;
+  int get millisecond => _wallClockUtcDateTime.millisecond;
+  int get microsecond => _wallClockUtcDateTime.microsecond;
 
-    return Hora.of(
-      year: dt.year,
-      month: dt.month,
-      day: dt.day,
-      hour: dt.hour,
-      minute: dt.minute,
-      second: dt.second,
-      millisecond: dt.millisecond,
+  int get unix => instantUtc.unix;
+  int get unixMillis => instantUtc.unixMillis;
+  int get unixMicros => instantUtc.unixMicros;
+
+  Duration get utcOffset => timezone.offset;
+
+  /// Same instant in another timezone.
+  HoraZoned withTimezone(HoraTimezone tz) => HoraZoned(instantUtc, tz);
+
+  /// Reinterprets current wall-clock as belonging to [targetTimezone].
+  ///
+  /// This changes the underlying instant.
+  Hora reinterpretAs(HoraTimezone targetTimezone) {
+    final wallMicros = _wallClockUtcDateTime.microsecondsSinceEpoch;
+    final reinterpretedMicros =
+        wallMicros - targetTimezone.offset.inMicroseconds;
+    return Hora.fromTimestamp(
+      reinterpretedMicros,
+      locale: instantUtc.locale,
       utc: true,
+      unit: UnixTimestampUnit.microseconds,
+    );
+  }
+
+  /// Formats wall-clock time using Hora tokens and target timezone offset.
+  String format([String pattern = 'YYYY-MM-DDTHH:mm:ssZ']) {
+    final transformed = _injectOffsetPlaceholders(pattern);
+    final rendered = wallClock.format(transformed);
+    return rendered
+        .replaceAll(_offsetTokenColonMarker, timezone.offsetString)
+        .replaceAll(
+          _offsetTokenCompactMarker,
+          timezone.offsetString.replaceAll(':', ''),
+        );
+  }
+
+  /// ISO 8601 output with timezone offset, e.g. `2024-03-15T21:00:00+09:00`.
+  String toIso8601String() {
+    final dt = _wallClockUtcDateTime;
+    final year = dt.year.toString().padLeft(4, '0');
+    final month = dt.month.toString().padLeft(2, '0');
+    final day = dt.day.toString().padLeft(2, '0');
+    final hour = dt.hour.toString().padLeft(2, '0');
+    final minute = dt.minute.toString().padLeft(2, '0');
+    final second = dt.second.toString().padLeft(2, '0');
+    final micros =
+        (dt.millisecond * 1000 + dt.microsecond).toString().padLeft(6, '0');
+    return '$year-$month-$day'
+        'T$hour:$minute:$second.$micros'
+        '${timezone.offsetString}';
+  }
+
+  static const _offsetTokenColonMarker = '__hora_tz_offset_colon__';
+  static const _offsetTokenCompactMarker = '__hora_tz_offset_compact__';
+
+  static String _injectOffsetPlaceholders(String pattern) {
+    final buffer = StringBuffer();
+    var i = 0;
+    while (i < pattern.length) {
+      final char = pattern[i];
+      if (char == '[') {
+        final end = pattern.indexOf(']', i + 1);
+        if (end == -1) {
+          buffer.write(pattern.substring(i));
+          break;
+        }
+        buffer.write(pattern.substring(i, end + 1));
+        i = end + 1;
+        continue;
+      }
+
+      if (pattern.startsWith('ZZ', i)) {
+        buffer.write('[$_offsetTokenCompactMarker]');
+        i += 2;
+        continue;
+      }
+      if (pattern.startsWith('Z', i)) {
+        buffer.write('[$_offsetTokenColonMarker]');
+        i += 1;
+        continue;
+      }
+
+      buffer.write(char);
+      i += 1;
+    }
+    return buffer.toString();
+  }
+
+  @override
+  int compareTo(HoraZoned other) => instantUtc.compareTo(other.instantUtc);
+
+  @override
+  String toString() => toIso8601String();
+}
+
+/// Extension providing timezone operations for [Hora].
+extension TimezoneExt on Hora {
+  /// UTC offset of this Hora based on UTC/local mode.
+  Duration get utcOffset {
+    if (!isValid) return Duration.zero;
+    return isUtc ? Duration.zero : toDateTime().timeZoneOffset;
+  }
+
+  /// Timezone name of this Hora based on UTC/local mode.
+  String get timezoneName {
+    if (!isValid) return 'Invalid';
+    return isUtc ? 'UTC' : toDateTime().timeZoneName;
+  }
+
+  /// Current timezone descriptor for this Hora instance.
+  HoraTimezone get timezone {
+    if (!isValid) return HoraTimezone.fromMinutes(0, name: 'Invalid');
+    return isUtc
+        ? HoraTimezone.utc
+        : HoraTimezone.fromMinutes(
+            utcOffset.inMinutes,
+            name: timezoneName.trim().isEmpty ? null : timezoneName,
+          );
+  }
+
+  /// Projects this instant into [tz] as a timezone-aware wall-clock view.
+  HoraZoned inTimezone(HoraTimezone tz) => HoraZoned(this, tz);
+
+  /// Reinterprets this wall-clock into [targetTimezone], changing instant.
+  Hora reinterpretTimezone(HoraTimezone targetTimezone) {
+    if (!isValid) return this;
+    final newMicros = unixMicros +
+        utcOffset.inMicroseconds -
+        targetTimezone.offset.inMicroseconds;
+    return Hora.fromTimestamp(
+      newMicros,
       locale: locale,
+      utc: true,
+      unit: UnixTimestampUnit.microseconds,
     );
   }
 
-  /// Creates a Hora with the same local time but in a different timezone.
-  ///
-  /// This doesn't convert the time, it reinterprets it.
-  Hora withTimezone(HoraTimezone tz) {
-    // Create the same wall clock time but offset by timezone
-    final localMs = unixMillis;
-    final currentOffset = isUtc ? Duration.zero : utcOffset;
-    final newMs =
-        localMs - currentOffset.inMilliseconds + tz.offset.inMilliseconds;
+  /// Time difference from current timezone to [tz].
+  Duration timezoneDifference(HoraTimezone tz) =>
+      isValid ? tz.offset - utcOffset : Duration.zero;
 
-    return Hora.unixMillis(newMs, locale: locale);
-  }
-
-  /// Gets the timezone offset in hours.
-  double get offsetHours => utcOffset.inMinutes / 60;
-
-  /// Gets the timezone offset formatted as a string.
-  String get offsetString {
-    final offset = utcOffset;
-    final hours = offset.inHours.abs();
-    final minutes = offset.inMinutes.abs() % 60;
-    final sign = offset.isNegative ? '-' : '+';
-    return '$sign${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}';
-  }
-
-  /// Checks if this is in the same timezone as another date.
-  bool isSameTimezone(Hora other) => utcOffset == other.utcOffset;
-
-  /// Gets the time difference to another timezone.
-  Duration timezoneDifference(HoraTimezone tz) => tz.offset - utcOffset;
-
-  /// Gets the wall clock time in another timezone.
-  ///
-  /// Returns only the time components (hour, minute, second) as a record.
-  ({int hour, int minute, int second}) wallClockIn(HoraTimezone tz) {
-    final converted = inTimezone(tz);
+  /// Full wall-clock projection in [tz].
+  ({
+    int year,
+    int month,
+    int day,
+    int hour,
+    int minute,
+    int second,
+    int millisecond,
+    int microsecond,
+  }) wallClockIn(HoraTimezone tz) {
+    final zoned = inTimezone(tz);
     return (
-      hour: converted.hour,
-      minute: converted.minute,
-      second: converted.second,
+      year: zoned.year,
+      month: zoned.month,
+      day: zoned.day,
+      hour: zoned.hour,
+      minute: zoned.minute,
+      second: zoned.second,
+      millisecond: zoned.millisecond,
+      microsecond: zoned.microsecond,
     );
   }
 }
 
-/// Extension for creating timezone-aware Hora instances.
-extension TimezoneConstructorExt on Hora {
-  /// Creates a Hora from UTC milliseconds with timezone info.
-  static Hora fromUtcMilliseconds(
-    int milliseconds, {
-    HoraTimezone timezone = HoraTimezone.utc,
-  }) {
-    final utc = Hora.unixMillis(milliseconds);
-    return utc.inTimezone(timezone);
-  }
-
-  /// Creates a Hora representing "now" in a specific timezone.
-  static Hora nowIn(HoraTimezone timezone) => Hora.now().inTimezone(timezone);
+/// Creates a timezone-projected view from UTC milliseconds.
+HoraZoned horaFromUtcMilliseconds(
+  int milliseconds, {
+  HoraTimezone timezone = HoraTimezone.utc,
+}) {
+  final utc = Hora.fromTimestamp(
+    milliseconds,
+    utc: true,
+    unit: UnixTimestampUnit.milliseconds,
+  );
+  return utc.inTimezone(timezone);
 }
 
-/// Represents a time range with timezone awareness.
+/// Creates a timezone-projected view for the current instant.
+HoraZoned horaNowIn(HoraTimezone timezone) => Hora.now().inTimezone(timezone);
+
+/// Represents a time range in a fixed timezone wall-clock space.
 class TimezoneRange {
-  const TimezoneRange({
+  TimezoneRange({
     required this.start,
     required this.end,
     required this.timezone,
-  });
-
-  final Hora start;
-  final Hora end;
-  final HoraTimezone timezone;
-
-  /// Gets the duration of this range.
-  Duration get duration => Duration(
-        milliseconds: end.unixMillis - start.unixMillis,
+  }) {
+    if (start.timezone != timezone || end.timezone != timezone) {
+      throw ArgumentError(
+        'start/end timezone must match range timezone.',
       );
-
-  /// Checks if a time falls within this range.
-  bool contains(Hora time) {
-    final tzTime = time.inTimezone(timezone);
-    return !tzTime.isBefore(start) && !tzTime.isAfter(end);
+    }
+    if (end.instantUtc.isBefore(start.instantUtc)) {
+      throw ArgumentError(
+        'Range end must be the same as or after start instant.',
+      );
+    }
   }
 
-  /// Converts this range to a different timezone.
+  final HoraZoned start;
+  final HoraZoned end;
+  final HoraTimezone timezone;
+
+  /// Duration between instants.
+  Duration get duration => end.instantUtc.difference(start.instantUtc);
+
+  /// Checks if [time] is within the wall-clock range in [timezone].
+  bool contains(Hora time) {
+    if (!time.isValid) return false;
+    final wall = time.inTimezone(timezone).wallClock;
+    return !wall.isBefore(start.wallClock) && !wall.isAfter(end.wallClock);
+  }
+
+  /// Converts this range to another timezone view while preserving instants.
   TimezoneRange inTimezone(HoraTimezone tz) => TimezoneRange(
-        start: start.inTimezone(tz),
-        end: end.inTimezone(tz),
+        start: start.withTimezone(tz),
+        end: end.withTimezone(tz),
         timezone: tz,
       );
 
   @override
-  String toString() => 'TimezoneRange($start - $end, ${timezone.name})';
+  String toString() =>
+      'TimezoneRange(${start.toIso8601String()} - ${end.toIso8601String()}, ${timezone.name})';
 }

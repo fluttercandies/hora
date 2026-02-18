@@ -144,19 +144,25 @@ extension PrecisionExt on Hora {
 
   /// Truncates this date to the given precision.
   Hora truncateTo(TimePrecision precision) => switch (precision) {
-        TimePrecision.year => Hora.of(year: year, locale: locale),
+        TimePrecision.year => Hora.of(year: year, utc: isUtc, locale: locale),
         TimePrecision.quarter => Hora.of(
             year: year,
             month: (quarter - 1) * 3 + 1,
+            utc: isUtc,
             locale: locale,
           ),
-        TimePrecision.month =>
-          Hora.of(year: year, month: month, locale: locale),
-        TimePrecision.week => startOf(TemporalUnit.week),
+        TimePrecision.month => Hora.of(
+            year: year,
+            month: month,
+            utc: isUtc,
+            locale: locale,
+          ),
+        TimePrecision.week => _truncateToIsoWeek(),
         TimePrecision.day => Hora.of(
             year: year,
             month: month,
             day: day,
+            utc: isUtc,
             locale: locale,
           ),
         TimePrecision.hour => Hora.of(
@@ -164,6 +170,7 @@ extension PrecisionExt on Hora {
             month: month,
             day: day,
             hour: hour,
+            utc: isUtc,
             locale: locale,
           ),
         TimePrecision.minute => Hora.of(
@@ -172,6 +179,7 @@ extension PrecisionExt on Hora {
             day: day,
             hour: hour,
             minute: minute,
+            utc: isUtc,
             locale: locale,
           ),
         TimePrecision.second => Hora.of(
@@ -181,10 +189,25 @@ extension PrecisionExt on Hora {
             hour: hour,
             minute: minute,
             second: second,
+            utc: isUtc,
             locale: locale,
           ),
-        TimePrecision.millisecond => this,
+        TimePrecision.millisecond => Hora.of(
+            year: year,
+            month: month,
+            day: day,
+            hour: hour,
+            minute: minute,
+            second: second,
+            millisecond: millisecond,
+            utc: isUtc,
+            locale: locale,
+          ),
       };
+
+  Hora _truncateToIsoWeek() =>
+      subtract(weekday - DateTime.monday, TemporalUnit.day)
+          .startOf(TemporalUnit.day);
 
   /// Rounds this date to the given precision.
   Hora roundTo(
@@ -213,33 +236,11 @@ extension PrecisionExt on Hora {
   Hora _roundTo(TimePrecision precision) {
     final truncated = truncateTo(precision);
     if (truncated == this) return this;
-
-    final half = switch (precision) {
-      TimePrecision.year => 6,
-      TimePrecision.quarter => 45,
-      TimePrecision.month => 15,
-      TimePrecision.week => 3,
-      TimePrecision.day => 12,
-      TimePrecision.hour => 30,
-      TimePrecision.minute => 30,
-      TimePrecision.second => 500,
-      TimePrecision.millisecond => 0,
-    };
-
-    final remainder = switch (precision) {
-      TimePrecision.year => month,
-      TimePrecision.quarter => day,
-      TimePrecision.month => day,
-      TimePrecision.week => weekday,
-      TimePrecision.day => hour,
-      TimePrecision.hour => minute,
-      TimePrecision.minute => second,
-      TimePrecision.second => millisecond,
-      TimePrecision.millisecond => 0,
-    };
-
-    if (remainder >= half) {
-      return truncated.add(1, precision.toUnit);
+    final nextBoundary = truncated.add(1, precision.toUnit);
+    final elapsedMicros = unixMicros - truncated.unixMicros;
+    final totalMicros = nextBoundary.unixMicros - truncated.unixMicros;
+    if (elapsedMicros * 2 >= totalMicros) {
+      return nextBoundary;
     }
     return truncated;
   }
@@ -261,6 +262,10 @@ extension PrecisionExt on Hora {
   /// For example, `alignTo(15, TimePrecision.minute)` aligns to
   /// 15-minute intervals (0, 15, 30, 45 minutes).
   Hora alignTo(int interval, TimePrecision precision) {
+    if (interval <= 0) {
+      throw ArgumentError.value(interval, 'interval', 'Must be positive.');
+    }
+
     final truncated = truncateTo(precision);
     final value = switch (precision) {
       TimePrecision.year => year,
@@ -274,7 +279,16 @@ extension PrecisionExt on Hora {
       TimePrecision.millisecond => millisecond,
     };
 
-    final aligned = (value ~/ interval) * interval;
+    final base = switch (precision) {
+      TimePrecision.quarter ||
+      TimePrecision.month ||
+      TimePrecision.week ||
+      TimePrecision.day =>
+        1,
+      _ => 0,
+    };
+
+    final aligned = ((value - base) ~/ interval) * interval + base;
     final diff = value - aligned;
 
     return truncated.subtract(diff, precision.toUnit);
@@ -295,6 +309,10 @@ extension PrecisionIterationExt on Hora {
     Hora? until,
     int? count,
   }) sync* {
+    if (interval <= 0) {
+      throw ArgumentError.value(interval, 'interval', 'Must be positive.');
+    }
+
     var current = this;
     var generated = 0;
 

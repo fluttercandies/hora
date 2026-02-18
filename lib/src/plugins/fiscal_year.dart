@@ -25,6 +25,43 @@ import 'package:meta/meta.dart';
 import '../hora.dart';
 import '../units.dart';
 
+void _validateFiscalYearConfig(FiscalYearConfig config) {
+  if (config.startMonth < 1 || config.startMonth > 12) {
+    throw ArgumentError.value(
+      config.startMonth,
+      'startMonth',
+      'startMonth must be between 1 and 12.',
+    );
+  }
+  if (config.startDay < 1 || config.startDay > 31) {
+    throw ArgumentError.value(
+      config.startDay,
+      'startDay',
+      'startDay must be between 1 and 31.',
+    );
+  }
+
+  // Validate against the maximum possible day in the configured month.
+  // February allows up to 29 to support leap-year fiscal boundaries.
+  final maxPossibleDay = DateTime(2024, config.startMonth + 1, 0).day;
+  if (config.startDay > maxPossibleDay) {
+    throw ArgumentError.value(
+      config.startDay,
+      'startDay',
+      'startDay exceeds valid maximum $maxPossibleDay for month ${config.startMonth}.',
+    );
+  }
+}
+
+int _effectiveFiscalStartDay({
+  required int year,
+  required int month,
+  required int startDay,
+}) {
+  final maxDay = DateTime(year, month + 1, 0).day;
+  return startDay > maxDay ? maxDay : startDay;
+}
+
 /// Configuration for fiscal year calculations.
 @immutable
 class FiscalYearConfig {
@@ -149,22 +186,31 @@ extension FiscalYearExt on Hora {
   }
 
   /// Gets the fiscal year using a configuration.
+  ///
+  /// The fiscal year is identified by the calendar year in which it starts.
+  /// Use [FiscalYearConfig.yearOffset] to shift the label (e.g., US Government
+  /// uses offset 1 so FY2024 = Oct 2023 - Sep 2024).
   int fiscalYearWithConfig(FiscalYearConfig config) {
+    _validateFiscalYearConfig(config);
+    final boundaryDay = _effectiveFiscalStartDay(
+      year: year,
+      month: config.startMonth,
+      startDay: config.startDay,
+    );
     if (month < config.startMonth ||
-        (month == config.startMonth && day < config.startDay)) {
-      return year + config.yearOffset;
+        (month == config.startMonth && day < boundaryDay)) {
+      return year - 1 + config.yearOffset;
     }
-    return year + 1 + config.yearOffset;
+    return year + config.yearOffset;
   }
 
   /// Gets the fiscal quarter (1-4).
-  int fiscalQuarter({int startMonth = 1}) {
-    final fiscalMonth = _fiscalMonth(startMonth);
-    return ((fiscalMonth - 1) ~/ 3) + 1;
-  }
+  int fiscalQuarter({int startMonth = 1}) =>
+      fiscalQuarterWithConfig(FiscalYearConfig(startMonth: startMonth));
 
   /// Gets the fiscal quarter using a configuration.
   int fiscalQuarterWithConfig(FiscalYearConfig config) {
+    _validateFiscalYearConfig(config);
     final fiscalMonth = _fiscalMonthWithConfig(config);
     return ((fiscalMonth - 1) ~/ 3) + 1;
   }
@@ -173,6 +219,7 @@ extension FiscalYearExt on Hora {
   FiscalPeriod fiscalPeriod({
     FiscalYearConfig config = const FiscalYearConfig(),
   }) {
+    _validateFiscalYearConfig(config);
     final fy = fiscalYearWithConfig(config);
     final fm = _fiscalMonthWithConfig(config);
     final fq = ((fm - 1) ~/ 3) + 1;
@@ -194,17 +241,19 @@ extension FiscalYearExt on Hora {
 
   /// Gets the start of the fiscal year using a configuration.
   Hora startOfFiscalYearWithConfig(FiscalYearConfig config) {
-    final fy = fiscalYearWithConfig(
-      FiscalYearConfig(
-        startMonth: config.startMonth,
-        startDay: config.startDay,
-      ),
+    _validateFiscalYearConfig(config);
+    final fy = fiscalYearWithConfig(config);
+    final startYear = fy - config.yearOffset;
+    final effectiveStartDay = _effectiveFiscalStartDay(
+      year: startYear,
+      month: config.startMonth,
+      startDay: config.startDay,
     );
-    final startYear = fy - 1 - config.yearOffset;
     return Hora.of(
       year: startYear,
       month: config.startMonth,
-      day: config.startDay,
+      day: effectiveStartDay,
+      utc: isUtc,
       locale: locale,
     );
   }
@@ -217,8 +266,22 @@ extension FiscalYearExt on Hora {
 
   /// Gets the end of the fiscal year using a configuration.
   Hora endOfFiscalYearWithConfig(FiscalYearConfig config) {
-    final start = startOfFiscalYearWithConfig(config);
-    return start.add(1, TemporalUnit.year).subtract(1, TemporalUnit.day);
+    _validateFiscalYearConfig(config);
+    final fy = fiscalYearWithConfig(config);
+    final nextStartYear = (fy + 1) - config.yearOffset;
+    final nextStartDay = _effectiveFiscalStartDay(
+      year: nextStartYear,
+      month: config.startMonth,
+      startDay: config.startDay,
+    );
+    final nextStart = Hora.of(
+      year: nextStartYear,
+      month: config.startMonth,
+      day: nextStartDay,
+      utc: isUtc,
+      locale: locale,
+    );
+    return nextStart.subtract(1, TemporalUnit.day).endOf(TemporalUnit.day);
   }
 
   /// Gets the start of the fiscal quarter.
@@ -231,7 +294,10 @@ extension FiscalYearExt on Hora {
   /// Gets the end of the fiscal quarter.
   Hora endOfFiscalQuarter({int startMonth = 1}) {
     final start = startOfFiscalQuarter(startMonth: startMonth);
-    return start.add(3, TemporalUnit.month).subtract(1, TemporalUnit.day);
+    return start
+        .add(3, TemporalUnit.month)
+        .subtract(1, TemporalUnit.day)
+        .endOf(TemporalUnit.day);
   }
 
   /// Gets the number of days remaining in the fiscal year.
@@ -266,15 +332,20 @@ extension FiscalYearExt on Hora {
       fiscalQuarter(startMonth: startMonth) ==
           other.fiscalQuarter(startMonth: startMonth);
 
-  int _fiscalMonth(int startMonth) {
-    final adjusted = month - startMonth + 1;
-    return adjusted <= 0 ? adjusted + 12 : adjusted;
-  }
-
   int _fiscalMonthWithConfig(FiscalYearConfig config) {
-    if (month < config.startMonth ||
-        (month == config.startMonth && day < config.startDay)) {
+    _validateFiscalYearConfig(config);
+    final boundaryDay = _effectiveFiscalStartDay(
+      year: year,
+      month: config.startMonth,
+      startDay: config.startDay,
+    );
+    if (month < config.startMonth) {
       return month + 12 - config.startMonth + 1;
+    }
+    if (month == config.startMonth && day < boundaryDay) {
+      // Dates before the boundary day in startMonth belong to the previous
+      // fiscal year and should map to fiscal month 12.
+      return 12;
     }
     return month - config.startMonth + 1;
   }

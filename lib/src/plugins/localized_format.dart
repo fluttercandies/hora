@@ -185,24 +185,72 @@ extension LocalizedFormatExtension on Hora {
   }
 
   String _expandLocalizedTokens(String pattern, HoraFormats formats) {
-    // Replace localized tokens with their format patterns
-    var result = pattern;
+    final buffer = StringBuffer();
+    var i = 0;
 
-    // Long forms first (to avoid partial matches)
-    result = result.replaceAll('LLLL', formats.llll);
-    result = result.replaceAll('LLL', formats.lll);
-    result = result.replaceAll('LTS', formats.lts);
-    result = result.replaceAll('LT', formats.lt);
-    result = result.replaceAll('LL', formats.ll);
-    result = result.replaceAll(RegExp(r'\bL\b'), formats.l);
+    while (i < pattern.length) {
+      if (pattern[i] == '[') {
+        final closeIndex = pattern.indexOf(']', i + 1);
+        if (closeIndex == -1) {
+          buffer.write(pattern.substring(i));
+          break;
+        }
+        buffer.write(pattern.substring(i, closeIndex + 1));
+        i = closeIndex + 1;
+        continue;
+      }
 
-    // Compact forms (use shortened month/weekday names)
-    result = result.replaceAll('llll', _compactFormat(formats.llll));
-    result = result.replaceAll('lll', _compactFormat(formats.lll));
-    result = result.replaceAll('ll', _compactFormat(formats.ll));
-    result = result.replaceAll(RegExp(r'\bl\b'), _compactFormat(formats.l));
+      final remaining = pattern.substring(i);
 
-    return result;
+      // Uppercase long forms — longest first.
+      if (remaining.startsWith('LLLL')) {
+        buffer.write(formats.llll);
+        i += 4;
+      } else if (remaining.startsWith('LLL')) {
+        buffer.write(formats.lll);
+        i += 3;
+      } else if (remaining.startsWith('LTS')) {
+        buffer.write(formats.lts);
+        i += 3;
+      } else if (remaining.startsWith('LT')) {
+        buffer.write(formats.lt);
+        i += 2;
+      } else if (remaining.startsWith('LL')) {
+        buffer.write(formats.ll);
+        i += 2;
+      } else if (remaining.startsWith('L') && !_isLetterAround(pattern, i)) {
+        buffer.write(formats.l);
+        i += 1;
+      } else if (remaining.startsWith('llll')) {
+        buffer.write(_compactFormat(formats.llll));
+        i += 4;
+      } else if (remaining.startsWith('lll')) {
+        buffer.write(_compactFormat(formats.lll));
+        i += 3;
+      } else if (remaining.startsWith('ll')) {
+        buffer.write(_compactFormat(formats.ll));
+        i += 2;
+      } else if (remaining.startsWith('l') && !_isLetterAround(pattern, i)) {
+        buffer.write(_compactFormat(formats.l));
+        i += 1;
+      } else {
+        buffer.write(pattern[i]);
+        i++;
+      }
+    }
+
+    return buffer.toString();
+  }
+
+  /// Returns true if the character at [index] is surrounded by ASCII letters,
+  /// used to avoid matching a standalone 'L' or 'l' token inside a word.
+  static bool _isLetterAround(String s, int index) {
+    bool isLetter(int i) =>
+        i >= 0 &&
+        i < s.length &&
+        ((s.codeUnitAt(i) >= 65 && s.codeUnitAt(i) <= 90) ||
+            (s.codeUnitAt(i) >= 97 && s.codeUnitAt(i) <= 122));
+    return isLetter(index - 1) || isLetter(index + 1);
   }
 
   /// Returns a compact version of a format (short month/weekday names).

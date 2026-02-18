@@ -27,14 +27,36 @@ library;
 import '../hora.dart';
 import '../units.dart';
 
+void _requireIsoWeekday(String field, int value) {
+  if (value < DateTime.monday || value > DateTime.sunday) {
+    throw ArgumentError.value(
+      value,
+      field,
+      'Expected ISO weekday in 1..7 (Monday..Sunday).',
+    );
+  }
+}
+
+bool _isAsciiLetterAround(String s, int index) {
+  bool isLetter(int i) =>
+      i >= 0 &&
+      i < s.length &&
+      ((s.codeUnitAt(i) >= 65 && s.codeUnitAt(i) <= 90) ||
+          (s.codeUnitAt(i) >= 97 && s.codeUnitAt(i) <= 122));
+  return isLetter(index - 1) || isLetter(index + 1);
+}
+
+String _compactLocalized(String format) =>
+    format.replaceAll('MMMM', 'MMM').replaceAll('dddd', 'ddd');
+
 /// Configuration for calendar formatting.
 class CalendarConfig {
   const CalendarConfig({
-    this.sameDay = 'Today at LT',
-    this.nextDay = 'Tomorrow at LT',
-    this.nextWeek = 'dddd at LT',
-    this.lastDay = 'Yesterday at LT',
-    this.lastWeek = 'Last dddd at LT',
+    this.sameDay = '[Today at] LT',
+    this.nextDay = '[Tomorrow at] LT',
+    this.nextWeek = 'dddd [at] LT',
+    this.lastDay = '[Yesterday at] LT',
+    this.lastWeek = '[Last] dddd [at] LT',
     this.sameElse = 'L',
   });
 
@@ -79,7 +101,7 @@ class MonthCalendar {
   /// Each week is a list of 7 dates (null for days outside the month).
   final List<List<Hora?>> weeks;
 
-  /// The first day of the week (0 = Sunday, 1 = Monday).
+  /// The first day of the week (1 = Monday, 7 = Sunday).
   final int firstDayOfWeek;
 
   /// Gets all days of the month.
@@ -119,7 +141,8 @@ extension CalendarExt on Hora {
     Hora? referenceDate,
     CalendarConfig config = CalendarConfig.defaultConfig,
   }) {
-    final ref = referenceDate ?? Hora.now(locale: locale);
+    final ref = referenceDate ??
+        (isUtc ? Hora.nowUtc(locale: locale) : Hora.now(locale: locale));
     final diffDays = startOf(TemporalUnit.day)
         .diff(ref.startOf(TemporalUnit.day), TemporalUnit.day)
         .toInt();
@@ -143,35 +166,77 @@ extension CalendarExt on Hora {
   }
 
   String _formatCalendar(String formatStr) {
-    // Handle special tokens
-    var result = formatStr;
+    // Pre-process special calendar tokens into locale-aware format tokens.
+    final formats = locale.formats;
+    final buffer = StringBuffer();
+    var i = 0;
+    while (i < formatStr.length) {
+      if (formatStr[i] == '[') {
+        final closeIndex = formatStr.indexOf(']', i + 1);
+        if (closeIndex == -1) {
+          buffer.write(formatStr.substring(i));
+          break;
+        }
+        buffer.write(formatStr.substring(i, closeIndex + 1));
+        i = closeIndex + 1;
+      } else if (formatStr.startsWith('LLLL', i)) {
+        buffer.write(formats.llll);
+        i += 4;
+      } else if (formatStr.startsWith('LLL', i)) {
+        buffer.write(formats.lll);
+        i += 3;
+      } else if (formatStr.startsWith('LTS', i)) {
+        buffer.write(formats.lts);
+        i += 3;
+      } else if (formatStr.startsWith('LL', i)) {
+        buffer.write(formats.ll);
+        i += 2;
+      } else if (formatStr.startsWith('LT', i)) {
+        buffer.write(formats.lt);
+        i += 2;
+      } else if (formatStr.startsWith('L', i) &&
+          !_isAsciiLetterAround(formatStr, i)) {
+        buffer.write(formats.l);
+        i++;
+      } else if (formatStr.startsWith('llll', i)) {
+        buffer.write(_compactLocalized(formats.llll));
+        i += 4;
+      } else if (formatStr.startsWith('lll', i)) {
+        buffer.write(_compactLocalized(formats.lll));
+        i += 3;
+      } else if (formatStr.startsWith('ll', i)) {
+        buffer.write(_compactLocalized(formats.ll));
+        i += 2;
+      } else if (formatStr.startsWith('l', i) &&
+          !_isAsciiLetterAround(formatStr, i)) {
+        buffer.write(_compactLocalized(formats.l));
+        i++;
+      } else {
+        buffer.write(formatStr[i]);
+        i++;
+      }
+    }
 
-    // LT = localized time
-    result = result.replaceAll('LT', format('h:mm A'));
-
-    // L = localized date
-    result = result.replaceAll('L', format('MM/DD/YYYY'));
-
-    // dddd = weekday name
-    result = result.replaceAll('dddd', format('dddd'));
-
-    return result;
+    return format(buffer.toString());
   }
 
   /// Generates a calendar for the current month.
-  MonthCalendar monthCalendar({int firstDayOfWeek = 0}) {
+  ///
+  /// [firstDayOfWeek] uses ISO weekday values (1 = Monday, 7 = Sunday).
+  MonthCalendar monthCalendar({int firstDayOfWeek = DateTime.monday}) {
+    _requireIsoWeekday('firstDayOfWeek', firstDayOfWeek);
+
     final first = startOf(TemporalUnit.month);
     final last = endOf(TemporalUnit.month);
 
-    // Adjust first day's weekday based on firstDayOfWeek
-    var firstWeekday = first.weekday - firstDayOfWeek;
-    if (firstWeekday < 0) firstWeekday += 7;
+    // Calculate leading empty days
+    final leadingDays = (first.weekday - firstDayOfWeek + 7) % 7;
 
     final weeks = <List<Hora?>>[];
     var currentWeek = <Hora?>[];
 
     // Fill leading nulls
-    for (var i = 0; i < firstWeekday; i++) {
+    for (var i = 0; i < leadingDays; i++) {
       currentWeek.add(null);
     }
 
@@ -182,6 +247,7 @@ extension CalendarExt on Hora {
           year: year,
           month: month,
           day: day,
+          utc: isUtc,
           locale: locale,
         ),
       );
@@ -209,11 +275,18 @@ extension CalendarExt on Hora {
   }
 
   /// Generates a calendar for the entire year.
-  YearCalendar yearCalendar({int firstDayOfWeek = 0}) {
+  ///
+  /// [firstDayOfWeek] uses ISO weekday values (1 = Monday, 7 = Sunday).
+  YearCalendar yearCalendar({int firstDayOfWeek = DateTime.monday}) {
     final months = <MonthCalendar>[];
 
     for (var m = 1; m <= 12; m++) {
-      final monthStart = Hora.of(year: year, month: m, locale: locale);
+      final monthStart = Hora.of(
+        year: year,
+        month: m,
+        utc: isUtc,
+        locale: locale,
+      );
       months.add(monthStart.monthCalendar(firstDayOfWeek: firstDayOfWeek));
     }
 
@@ -237,6 +310,8 @@ extension CalendarExt on Hora {
 
   /// Gets the first occurrence of a weekday in the current month.
   Hora firstWeekdayInMonth(int weekday) {
+    _requireIsoWeekday('weekday', weekday);
+
     var current = startOf(TemporalUnit.month);
     while (current.weekday != weekday) {
       current = current.add(1, TemporalUnit.day);
@@ -246,6 +321,8 @@ extension CalendarExt on Hora {
 
   /// Gets the last occurrence of a weekday in the current month.
   Hora lastWeekdayInMonth(int weekday) {
+    _requireIsoWeekday('weekday', weekday);
+
     var current = endOf(TemporalUnit.month);
     while (current.weekday != weekday) {
       current = current.subtract(1, TemporalUnit.day);
@@ -258,6 +335,7 @@ extension CalendarExt on Hora {
   /// [n] can be positive (1 = first, 2 = second, etc.)
   /// or negative (-1 = last, -2 = second to last, etc.)
   Hora? nthWeekdayInMonth(int weekday, int n) {
+    _requireIsoWeekday('weekday', weekday);
     if (n == 0) return null;
 
     if (n > 0) {
@@ -277,17 +355,35 @@ extension CalendarExt on Hora {
     }
   }
 
-  /// Checks if this is a "long" weekend (3+ consecutive non-working days).
-  bool get isLongWeekend {
-    // Simple check: Friday + Saturday + Sunday
-    // This could be enhanced with holiday calendars
-    if (weekday == DateTime.friday) {
-      return true;
+  /// Checks if this is part of a "long" weekend (3+ consecutive non-working days).
+  ///
+  /// Without [isHoliday], a standard Saturday-Sunday weekend is only 2 days,
+  /// so this always returns false. Provide [isHoliday] to include holidays
+  /// (e.g., a Friday or Monday holiday creates a 3-day weekend).
+  bool isLongWeekend({bool Function(Hora)? isHoliday}) {
+    bool isNonWorking(Hora date) {
+      if (date.isWeekend) return true;
+      return isHoliday?.call(date) ?? false;
     }
-    if (weekday == DateTime.saturday || weekday == DateTime.sunday) {
-      // Check if Friday was part of it (public holiday logic would go here)
-      return false;
+
+    if (!isNonWorking(this)) return false;
+
+    var count = 1;
+
+    var next = add(1, TemporalUnit.day);
+    while (isNonWorking(next)) {
+      count++;
+      if (count >= 3) return true;
+      next = next.add(1, TemporalUnit.day);
     }
+
+    var prev = subtract(1, TemporalUnit.day);
+    while (isNonWorking(prev)) {
+      count++;
+      if (count >= 3) return true;
+      prev = prev.subtract(1, TemporalUnit.day);
+    }
+
     return false;
   }
 }
@@ -297,7 +393,7 @@ extension CalendarIterationExt on Hora {
   /// Generates all months in the year.
   Iterable<Hora> get monthsInYear sync* {
     for (var m = 1; m <= 12; m++) {
-      yield Hora.of(year: year, month: m, locale: locale);
+      yield Hora.of(year: year, month: m, utc: isUtc, locale: locale);
     }
   }
 
@@ -331,6 +427,8 @@ extension CalendarIterationExt on Hora {
 
   /// Gets all occurrences of a weekday in the current month.
   List<Hora> weekdaysInMonth(int weekday) {
+    _requireIsoWeekday('weekday', weekday);
+
     final result = <Hora>[];
     var current = firstWeekdayInMonth(weekday);
 

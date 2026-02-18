@@ -135,6 +135,9 @@ abstract class Recurrence extends Iterable<Hora> {
   /// Gets the nth occurrence (0-indexed).
   Hora? occurrence(int n) {
     if (n < 0) return null;
+    if (count != null && count! <= 0) return null;
+    if (count != null && n >= count!) return null;
+    if (end != null && start.isAfter(end!)) return null;
     var current = start;
     for (var i = 0; i < n; i++) {
       final next = this.next(current);
@@ -158,16 +161,60 @@ abstract class Recurrence extends Iterable<Hora> {
     }
     return results;
   }
+
+  static void validateInterval(int interval) {
+    if (interval <= 0) {
+      throw ArgumentError.value(
+        interval,
+        'interval',
+        'Must be greater than 0.',
+      );
+    }
+  }
+
+  static void validateCount(int? count) {
+    if (count != null && count < 0) {
+      throw ArgumentError.value(
+        count,
+        'count',
+        'Must be greater than or equal to 0.',
+      );
+    }
+  }
+
+  static void validateWeekdays(
+    Iterable<int> weekdays, {
+    required String field,
+  }) {
+    for (final day in weekdays) {
+      if (day < DateTime.monday || day > DateTime.sunday) {
+        throw ArgumentError.value(day, field, 'Weekday must be in 1..7.');
+      }
+    }
+  }
 }
 
 class _DailyRecurrence extends Recurrence {
-  const _DailyRecurrence({
+  _DailyRecurrence({
     required this.start,
     this.end,
     this.count,
     this.interval = 1,
     this.excludeWeekdays,
-  }) : super._();
+  }) : super._() {
+    Recurrence.validateInterval(interval);
+    Recurrence.validateCount(count);
+    if (excludeWeekdays != null) {
+      Recurrence.validateWeekdays(excludeWeekdays!, field: 'excludeWeekdays');
+      if (excludeWeekdays!.length >= 7) {
+        throw ArgumentError.value(
+          excludeWeekdays,
+          'excludeWeekdays',
+          'Cannot exclude all weekdays; recurrence would never advance.',
+        );
+      }
+    }
+  }
 
   @override
   final Hora start;
@@ -199,21 +246,46 @@ class _DailyRecurrence extends Recurrence {
   bool matches(Hora date) {
     if (date.isBefore(start)) return false;
     if (end != null && date.isAfter(end!)) return false;
-    if (excludeWeekdays?.contains(date.weekday) ?? false) return false;
+    if (date.isSame(start, TemporalUnit.day)) return true;
 
-    final daysDiff = date.diff(start, TemporalUnit.day).toInt();
-    return daysDiff % interval == 0;
+    var current = start;
+    var guard = 0;
+    while (current.isBefore(date)) {
+      final nextDate = next(current);
+      if (nextDate == null) return false;
+      if (!nextDate.isAfter(current)) {
+        throw StateError(
+          'Daily recurrence must move forward. Current: $current, next: $nextDate.',
+        );
+      }
+      current = nextDate;
+      if (++guard > 100000) {
+        throw StateError(
+          'Daily recurrence matching exceeded iteration guard. '
+          'Start: $start, target: $date.',
+        );
+      }
+    }
+
+    return current.isSame(date, TemporalUnit.day);
   }
 }
 
 class _WeeklyRecurrence extends Recurrence {
-  const _WeeklyRecurrence({
+  _WeeklyRecurrence({
     required this.start,
     this.end,
     this.count,
     this.interval = 1,
     this.daysOfWeek = const {DateTime.monday},
-  }) : super._();
+  }) : super._() {
+    Recurrence.validateInterval(interval);
+    Recurrence.validateCount(count);
+    if (daysOfWeek.isEmpty) {
+      throw ArgumentError('daysOfWeek must not be empty');
+    }
+    Recurrence.validateWeekdays(daysOfWeek, field: 'daysOfWeek');
+  }
 
   @override
   final Hora start;
@@ -255,6 +327,7 @@ class _WeeklyRecurrence extends Recurrence {
   bool matches(Hora date) {
     if (date.isBefore(start)) return false;
     if (end != null && date.isAfter(end!)) return false;
+    if (date.isSame(start, TemporalUnit.day)) return true;
     if (!daysOfWeek.contains(date.weekday)) return false;
 
     final weeksDiff = date.diff(start, TemporalUnit.week).toInt();
@@ -272,7 +345,33 @@ class _MonthlyRecurrence extends Recurrence {
     this.weekdayOrdinal,
     this.weekday,
   })  : dayOfMonth = dayOfMonth ?? start.day,
-        super._();
+        super._() {
+    Recurrence.validateInterval(interval);
+    Recurrence.validateCount(count);
+    if (this.dayOfMonth < 1 || this.dayOfMonth > 31) {
+      throw ArgumentError.value(
+        this.dayOfMonth,
+        'dayOfMonth',
+        'Must be in 1..31.',
+      );
+    }
+    final hasWeekdayRule = weekdayOrdinal != null || weekday != null;
+    if (hasWeekdayRule) {
+      if (weekdayOrdinal == null || weekday == null) {
+        throw ArgumentError(
+          'weekdayOrdinal and weekday must be provided together.',
+        );
+      }
+      if (weekdayOrdinal == 0 || weekdayOrdinal! < -5 || weekdayOrdinal! > 5) {
+        throw ArgumentError.value(
+          weekdayOrdinal,
+          'weekdayOrdinal',
+          'Must be in -5..-1 or 1..5.',
+        );
+      }
+      Recurrence.validateWeekdays([weekday!], field: 'weekday');
+    }
+  }
 
   @override
   final Hora start;
@@ -290,31 +389,39 @@ class _MonthlyRecurrence extends Recurrence {
 
   @override
   Hora? next(Hora current) {
-    var nextMonth = current.add(interval, TemporalUnit.month);
+    var monthCursor = current;
 
-    if (weekdayOrdinal != null && weekday != null) {
-      // Find nth weekday of month
-      nextMonth = _findNthWeekday(nextMonth.year, nextMonth.month);
-    } else {
-      // Use specific day of month
-      final daysInMonth =
-          Hora.of(year: nextMonth.year, month: nextMonth.month).daysInMonth;
-      final targetDay = dayOfMonth > daysInMonth ? daysInMonth : dayOfMonth;
-      nextMonth = Hora.of(
-        year: nextMonth.year,
-        month: nextMonth.month,
-        day: targetDay,
-        locale: start.locale,
-      );
+    while (true) {
+      final nextMonth = monthCursor.add(interval, TemporalUnit.month);
+      final candidate = switch ((weekdayOrdinal, weekday)) {
+        (final int _, final int _) =>
+          _findNthWeekdayOrNull(nextMonth.year, nextMonth.month),
+        _ => _withStartTime(
+            _dayOfMonthInMonth(nextMonth.year, nextMonth.month, dayOfMonth),
+          ),
+      };
+
+      if (candidate == null || !candidate.isAfter(current)) {
+        monthCursor = nextMonth;
+        if (end != null &&
+            monthCursor.startOf(TemporalUnit.month).isAfter(end!)) {
+          return null;
+        }
+        continue;
+      }
+
+      if (end != null && candidate.isAfter(end!)) return null;
+      return candidate;
     }
-
-    if (end != null && nextMonth.isAfter(end!)) return null;
-    return nextMonth;
   }
 
-  Hora _findNthWeekday(int year, int month) {
-    final firstOfMonth =
-        Hora.of(year: year, month: month, locale: start.locale);
+  Hora? _findNthWeekdayOrNull(int year, int month) {
+    final firstOfMonth = Hora.of(
+      year: year,
+      month: month,
+      utc: start.isUtc,
+      locale: start.locale,
+    );
     var date = firstOfMonth;
 
     // Find first occurrence of the weekday
@@ -332,16 +439,39 @@ class _MonthlyRecurrence extends Recurrence {
       while (date.weekday != weekday) {
         date = date.subtract(1, TemporalUnit.day);
       }
-      date = date.add((weekdayOrdinal! + 1) * 7, TemporalUnit.day);
+      date = date.subtract((-weekdayOrdinal! - 1) * 7, TemporalUnit.day);
     }
 
-    return date;
+    if (date.month != month) return null;
+    return _withStartTime(date);
   }
+
+  Hora _dayOfMonthInMonth(int year, int month, int targetDay) {
+    final daysInMonth = Hora.of(year: year, month: month).daysInMonth;
+    final day = targetDay > daysInMonth ? daysInMonth : targetDay;
+    return Hora.of(
+      year: year,
+      month: month,
+      day: day,
+      utc: start.isUtc,
+      locale: start.locale,
+    );
+  }
+
+  Hora _withStartTime(Hora date) => date.copyWith(
+        hour: start.hour,
+        minute: start.minute,
+        second: start.second,
+        millisecond: start.millisecond,
+        microsecond: start.microsecond,
+        utc: start.isUtc,
+      );
 
   @override
   bool matches(Hora date) {
     if (date.isBefore(start)) return false;
     if (end != null && date.isAfter(end!)) return false;
+    if (date.isSame(start, TemporalUnit.day)) return true;
 
     if (weekdayOrdinal != null && weekday != null) {
       if (date.weekday != weekday) return false;
@@ -365,12 +495,15 @@ class _MonthlyRecurrence extends Recurrence {
 }
 
 class _YearlyRecurrence extends Recurrence {
-  const _YearlyRecurrence({
+  _YearlyRecurrence({
     required this.start,
     this.end,
     this.count,
     this.interval = 1,
-  }) : super._();
+  }) : super._() {
+    Recurrence.validateInterval(interval);
+    Recurrence.validateCount(count);
+  }
 
   @override
   final Hora start;
@@ -385,22 +518,30 @@ class _YearlyRecurrence extends Recurrence {
 
   @override
   Hora? next(Hora current) {
-    var next = current.add(interval, TemporalUnit.year);
-
-    // Handle Feb 29 for non-leap years
+    final targetYear = current.year + interval;
+    var targetDay = start.day;
     if (start.month == 2 && start.day == 29) {
-      if (!next.isLeapYear) {
-        next = Hora.of(
-          year: next.year,
-          month: 2,
-          day: 28,
-          hour: next.hour,
-          minute: next.minute,
-          second: next.second,
-          locale: start.locale,
-        );
+      targetDay = Hora.of(year: targetYear, month: 2).isLeapYear ? 29 : 28;
+    } else {
+      final daysInTargetMonth =
+          Hora.of(year: targetYear, month: start.month).daysInMonth;
+      if (targetDay > daysInTargetMonth) {
+        targetDay = daysInTargetMonth;
       }
     }
+
+    final next = Hora.of(
+      year: targetYear,
+      month: start.month,
+      day: targetDay,
+      hour: start.hour,
+      minute: start.minute,
+      second: start.second,
+      millisecond: start.millisecond,
+      microsecond: start.microsecond,
+      utc: start.isUtc,
+      locale: start.locale,
+    );
 
     if (end != null && next.isAfter(end!)) return null;
     return next;
@@ -424,12 +565,14 @@ class _YearlyRecurrence extends Recurrence {
 }
 
 class _CustomRecurrence extends Recurrence {
-  const _CustomRecurrence({
+  _CustomRecurrence({
     required this.start,
     required this.generator,
     this.end,
     this.count,
-  }) : super._();
+  }) : super._() {
+    Recurrence.validateCount(count);
+  }
 
   @override
   final Hora start;
@@ -452,9 +595,11 @@ class _CustomRecurrence extends Recurrence {
 
   @override
   bool matches(Hora date) {
+    var iterations = 0;
     for (final occurrence in this) {
       if (occurrence.isAfter(date)) return false;
       if (occurrence.isSame(date, TemporalUnit.day)) return true;
+      if (++iterations > 10000) return false;
     }
     return false;
   }
@@ -473,6 +618,14 @@ class _RecurrenceIterator implements Iterator<Hora> {
 
   @override
   bool moveNext() {
+    if (_recurrence.count != null && _recurrence.count! <= 0) {
+      return false;
+    }
+    if (_recurrence.end != null &&
+        _recurrence.start.isAfter(_recurrence.end!)) {
+      return false;
+    }
+
     if (!_started) {
       _current = _recurrence.start;
       _started = true;
@@ -486,6 +639,12 @@ class _RecurrenceIterator implements Iterator<Hora> {
 
     final next = _recurrence.next(_current);
     if (next == null) return false;
+    if (!next.isAfter(_current)) {
+      throw StateError(
+        'Recurrence must generate strictly increasing occurrences. '
+        'Current: $_current, next: $next.',
+      );
+    }
 
     _current = next;
     _generated++;

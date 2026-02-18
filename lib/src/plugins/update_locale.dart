@@ -22,6 +22,89 @@ library;
 import '../hora.dart';
 import '../locale.dart';
 
+void _validateLocaleCode(String? code) {
+  if (code == null) return;
+  if (code.trim().isEmpty) {
+    throw ArgumentError.value(code, 'code', 'Locale code must not be empty.');
+  }
+}
+
+void _validateLocaleList(
+  List<String>? values,
+  String field,
+  int expectedLength,
+) {
+  if (values == null) return;
+  if (values.length != expectedLength) {
+    throw ArgumentError.value(
+      values,
+      field,
+      'Expected exactly $expectedLength entries.',
+    );
+  }
+}
+
+void _validateLocaleRange(int? value, String field, int min, int max) {
+  if (value == null) return;
+  if (value < min || value > max) {
+    throw ArgumentError.value(
+      value,
+      field,
+      'Expected value in range $min..$max.',
+    );
+  }
+}
+
+void _validateLocaleOverrides({
+  String? code,
+  List<String>? months,
+  List<String>? monthsShort,
+  List<String>? weekdays,
+  List<String>? weekdaysShort,
+  List<String>? weekdaysMin,
+  int? weekStart,
+  int? yearStart,
+}) {
+  _validateLocaleCode(code);
+  _validateLocaleList(months, 'months', 12);
+  _validateLocaleList(monthsShort, 'monthsShort', 12);
+  _validateLocaleList(weekdays, 'weekdays', 7);
+  _validateLocaleList(weekdaysShort, 'weekdaysShort', 7);
+  _validateLocaleList(weekdaysMin, 'weekdaysMin', 7);
+  _validateLocaleRange(
+    weekStart,
+    'weekStart',
+    DateTime.monday,
+    DateTime.sunday,
+  );
+  _validateLocaleRange(yearStart, 'yearStart', 1, 7);
+}
+
+List<String> _validatedLocaleList(
+  List<String> values, {
+  required String field,
+  required int expectedLength,
+}) {
+  if (values.length != expectedLength) {
+    throw StateError(
+      'Locale field "$field" must contain exactly $expectedLength entries.',
+    );
+  }
+  return values;
+}
+
+int _validatedLocaleInt(
+  int value, {
+  required String field,
+  required int min,
+  required int max,
+}) {
+  if (value < min || value > max) {
+    throw StateError('Locale field "$field" must be in range $min..$max.');
+  }
+  return value;
+}
+
 /// A wrapper locale that overrides specific properties of a base locale.
 class UpdatedLocale extends HoraLocale {
   const UpdatedLocale(
@@ -72,25 +155,55 @@ class UpdatedLocale extends HoraLocale {
   String get code => _code ?? _base.code;
 
   @override
-  List<String> get months => _months ?? _base.months;
+  List<String> get months => _validatedLocaleList(
+        _months ?? _base.months,
+        field: 'months',
+        expectedLength: 12,
+      );
 
   @override
-  List<String> get monthsShort => _monthsShort ?? _base.monthsShort;
+  List<String> get monthsShort => _validatedLocaleList(
+        _monthsShort ?? _base.monthsShort,
+        field: 'monthsShort',
+        expectedLength: 12,
+      );
 
   @override
-  List<String> get weekdays => _weekdays ?? _base.weekdays;
+  List<String> get weekdays => _validatedLocaleList(
+        _weekdays ?? _base.weekdays,
+        field: 'weekdays',
+        expectedLength: 7,
+      );
 
   @override
-  List<String> get weekdaysShort => _weekdaysShort ?? _base.weekdaysShort;
+  List<String> get weekdaysShort => _validatedLocaleList(
+        _weekdaysShort ?? _base.weekdaysShort,
+        field: 'weekdaysShort',
+        expectedLength: 7,
+      );
 
   @override
-  List<String> get weekdaysMin => _weekdaysMin ?? _base.weekdaysMin;
+  List<String> get weekdaysMin => _validatedLocaleList(
+        _weekdaysMin ?? _base.weekdaysMin,
+        field: 'weekdaysMin',
+        expectedLength: 7,
+      );
 
   @override
-  int get weekStart => _weekStart ?? _base.weekStart;
+  int get weekStart => _validatedLocaleInt(
+        _weekStart ?? _base.weekStart,
+        field: 'weekStart',
+        min: DateTime.monday,
+        max: DateTime.sunday,
+      );
 
   @override
-  int get yearStart => _yearStart ?? _base.yearStart;
+  int get yearStart => _validatedLocaleInt(
+        _yearStart ?? _base.yearStart,
+        field: 'yearStart',
+        min: 1,
+        max: 7,
+      );
 
   @override
   String get invalidDate => _invalidDate ?? _base.invalidDate;
@@ -137,23 +250,34 @@ extension UpdateLocaleExtension on HoraLocale {
     HoraRelativeTime? relativeTime,
     String Function(int n, String? unit)? ordinal,
     String Function(int hour, int minute, {bool lowercase})? meridiem,
-  }) =>
-      UpdatedLocale(
-        this,
-        code: code,
-        months: months,
-        monthsShort: monthsShort,
-        weekdays: weekdays,
-        weekdaysShort: weekdaysShort,
-        weekdaysMin: weekdaysMin,
-        weekStart: weekStart,
-        yearStart: yearStart,
-        invalidDate: invalidDate,
-        formats: formats,
-        relativeTime: relativeTime,
-        ordinal: ordinal,
-        meridiem: meridiem,
-      );
+  }) {
+    _validateLocaleOverrides(
+      code: code,
+      months: months,
+      monthsShort: monthsShort,
+      weekdays: weekdays,
+      weekdaysShort: weekdaysShort,
+      weekdaysMin: weekdaysMin,
+      weekStart: weekStart,
+      yearStart: yearStart,
+    );
+    return UpdatedLocale(
+      this,
+      code: code,
+      months: months,
+      monthsShort: monthsShort,
+      weekdays: weekdays,
+      weekdaysShort: weekdaysShort,
+      weekdaysMin: weekdaysMin,
+      weekStart: weekStart,
+      yearStart: yearStart,
+      invalidDate: invalidDate,
+      formats: formats,
+      relativeTime: relativeTime,
+      ordinal: ordinal,
+      meridiem: meridiem,
+    );
+  }
 
   /// Creates a new locale with updated formats.
   UpdatedLocale updateFormats({
@@ -216,34 +340,43 @@ extension UpdateLocaleExtension on HoraLocale {
       );
 }
 
-/// Extension for updating global locale.
-extension HoraGlobalLocaleExtension on Hora {
-  /// Updates the global locale settings.
-  static void updateGlobalLocale({
-    String? code,
-    List<String>? months,
-    List<String>? monthsShort,
-    List<String>? weekdays,
-    List<String>? weekdaysShort,
-    List<String>? weekdaysMin,
-    int? weekStart,
-    int? yearStart,
-    String? invalidDate,
-    HoraFormats? formats,
-    HoraRelativeTime? relativeTime,
-  }) {
-    Hora.globalLocale = Hora.globalLocale.update(
-      code: code,
-      months: months,
-      monthsShort: monthsShort,
-      weekdays: weekdays,
-      weekdaysShort: weekdaysShort,
-      weekdaysMin: weekdaysMin,
-      weekStart: weekStart,
-      yearStart: yearStart,
-      invalidDate: invalidDate,
-      formats: formats,
-      relativeTime: relativeTime,
-    );
-  }
+/// Updates the global locale settings.
+///
+/// Any properties not specified will keep the current global locale's values.
+void updateHoraGlobalLocale({
+  String? code,
+  List<String>? months,
+  List<String>? monthsShort,
+  List<String>? weekdays,
+  List<String>? weekdaysShort,
+  List<String>? weekdaysMin,
+  int? weekStart,
+  int? yearStart,
+  String? invalidDate,
+  HoraFormats? formats,
+  HoraRelativeTime? relativeTime,
+}) {
+  _validateLocaleOverrides(
+    code: code,
+    months: months,
+    monthsShort: monthsShort,
+    weekdays: weekdays,
+    weekdaysShort: weekdaysShort,
+    weekdaysMin: weekdaysMin,
+    weekStart: weekStart,
+    yearStart: yearStart,
+  );
+  Hora.globalLocale = Hora.globalLocale.update(
+    code: code,
+    months: months,
+    monthsShort: monthsShort,
+    weekdays: weekdays,
+    weekdaysShort: weekdaysShort,
+    weekdaysMin: weekdaysMin,
+    weekStart: weekStart,
+    yearStart: yearStart,
+    invalidDate: invalidDate,
+    formats: formats,
+    relativeTime: relativeTime,
+  );
 }

@@ -55,7 +55,7 @@ class LocaleData {
         _locale.meridiem(12, 0),
       ]);
 
-  /// Gets the first day of week (0 = Sunday, 1 = Monday, etc.).
+  /// Gets the first day of week in ISO weekday numbering (1 = Monday, 7 = Sunday).
   int get firstDayOfWeek => _locale.weekStart;
 
   /// Gets the ordinal suffix for a number.

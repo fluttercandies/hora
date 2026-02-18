@@ -203,16 +203,27 @@ extension RelativeTimePluginExt on Hora {
     final months = days ~/ 30;
     final years = days ~/ 365;
 
-    if (seconds < t.seconds) {
+    if (seconds <= t.seconds) {
       return (RelativeTimeUnit.second, seconds);
-    } else if (minutes < t.minutes) {
+    } else if (minutes == 0) {
+      // Between threshold and 2 minutes — treat as "a minute".
+      return (RelativeTimeUnit.minute, 1);
+    } else if (minutes <= t.minutes) {
       return (RelativeTimeUnit.minute, minutes);
-    } else if (hours < t.hours) {
+    } else if (hours == 0) {
+      return (RelativeTimeUnit.hour, 1);
+    } else if (hours <= t.hours) {
       return (RelativeTimeUnit.hour, hours);
-    } else if (days < t.days) {
+    } else if (days == 0) {
+      return (RelativeTimeUnit.day, 1);
+    } else if (days <= t.days) {
       return (RelativeTimeUnit.day, days);
-    } else if (months < t.months) {
+    } else if (months == 0) {
+      return (RelativeTimeUnit.month, 1);
+    } else if (months <= t.months) {
       return (RelativeTimeUnit.month, months);
+    } else if (years == 0) {
+      return (RelativeTimeUnit.year, 1);
     } else {
       return (RelativeTimeUnit.year, years);
     }

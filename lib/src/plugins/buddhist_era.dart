@@ -47,15 +47,32 @@ extension BuddhistEraExt on Hora {
       return locale.invalidDate;
     }
 
-    // Replace Buddhist Era tokens before standard formatting
-    var result = pattern;
-    result = result.replaceAll('BBBB', buddhistYear.toString().padLeft(4, '0'));
-    result = result.replaceAll(
-      'BB',
-      buddhistYearShort.toString().padLeft(2, '0'),
-    );
+    // Pre-process: replace Buddhist Era tokens with escaped literals
+    // before passing to the standard formatter.
+    final buffer = StringBuffer();
+    var i = 0;
+    while (i < pattern.length) {
+      if (pattern[i] == '[') {
+        final closeIndex = pattern.indexOf(']', i + 1);
+        if (closeIndex == -1) {
+          buffer.write(pattern.substring(i));
+          break;
+        }
+        buffer.write(pattern.substring(i, closeIndex + 1));
+        i = closeIndex + 1;
+      } else if (pattern.startsWith('BBBB', i)) {
+        buffer.write('[${buddhistYear.toString().padLeft(4, '0')}]');
+        i += 4;
+      } else if (pattern.startsWith('BB', i)) {
+        buffer.write('[${buddhistYearShort.toString().padLeft(2, '0')}]');
+        i += 2;
+      } else {
+        buffer.write(pattern[i]);
+        i++;
+      }
+    }
 
-    return format(result);
+    return format(buffer.toString());
   }
 
   /// Creates a new Hora with the specified Buddhist Era year.
@@ -70,34 +87,31 @@ extension BuddhistEraExt on Hora {
 /// Creates a Hora from Buddhist Era components.
 ///
 /// ```dart
-/// final h = Hora.buddhistEra(year: 2566, month: 12, day: 25);
+/// final h = horaBuddhistEra(year: 2566, month: 12, day: 25);
 /// print(h.year); // 2023
 /// ```
-extension HoraBuddhistEraFactory on Hora {
-  /// Creates a Hora from Buddhist Era year.
-  static Hora fromBuddhistEra({
-    required int year,
-    int month = 1,
-    int day = 1,
-    int hour = 0,
-    int minute = 0,
-    int second = 0,
-    int millisecond = 0,
-    int microsecond = 0,
-    bool utc = false,
-  }) =>
-      Hora.of(
-        year: year - 543,
-        month: month,
-        day: day,
-        hour: hour,
-        minute: minute,
-        second: second,
-        millisecond: millisecond,
-        microsecond: microsecond,
-        utc: utc,
-      );
-}
+Hora horaBuddhistEra({
+  required int year,
+  int month = 1,
+  int day = 1,
+  int hour = 0,
+  int minute = 0,
+  int second = 0,
+  int millisecond = 0,
+  int microsecond = 0,
+  bool utc = false,
+}) =>
+    Hora.of(
+      year: year - 543,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second,
+      millisecond: millisecond,
+      microsecond: microsecond,
+      utc: utc,
+    );
 
 /// Alternative calendar era systems.
 enum CalendarEra {
@@ -125,38 +139,44 @@ extension MultiEraCalendarExt on Hora {
       };
 
   int _japaneseEraYear() {
-    // Reiwa era started on May 1, 2019
-    if (year > 2019 || (year == 2019 && month >= 5)) {
+    if (_isOnOrAfter(2019, 5, 1)) {
+      // Reiwa
       return year - 2018;
     }
-    // Heisei era: 1989-2019
-    if (year >= 1989) {
+    if (_isOnOrAfter(1989, 1, 8)) {
+      // Heisei
       return year - 1988;
     }
-    // Showa era: 1926-1989
-    if (year >= 1926) {
+    if (_isOnOrAfter(1926, 12, 25)) {
+      // Showa
       return year - 1925;
     }
-    // Taisho era: 1912-1926
-    if (year >= 1912) {
+    if (_isOnOrAfter(1912, 7, 30)) {
+      // Taisho
       return year - 1911;
     }
-    // Meiji era: 1868-1912
+    // Meiji (from 1868-09-08; dates before that are mapped to this branch)
     return year - 1867;
+  }
+
+  bool _isOnOrAfter(int y, int m, int d) {
+    if (year != y) return year > y;
+    if (month != m) return month > m;
+    return day >= d;
   }
 
   /// Returns the name of the current Japanese era.
   String get japaneseEraName {
-    if (year > 2019 || (year == 2019 && month >= 5)) {
+    if (_isOnOrAfter(2019, 5, 1)) {
       return '令和'; // Reiwa
     }
-    if (year >= 1989) {
+    if (_isOnOrAfter(1989, 1, 8)) {
       return '平成'; // Heisei
     }
-    if (year >= 1926) {
+    if (_isOnOrAfter(1926, 12, 25)) {
       return '昭和'; // Showa
     }
-    if (year >= 1912) {
+    if (_isOnOrAfter(1912, 7, 30)) {
       return '大正'; // Taisho
     }
     return '明治'; // Meiji

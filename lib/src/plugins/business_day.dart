@@ -29,6 +29,47 @@ library;
 import '../hora.dart';
 import '../units.dart';
 
+const _maxBusinessDaySearchIterations = 365000; // ~1000 years of daily checks.
+
+void _validateWeekendDays(
+  Set<int> weekendDays, {
+  required String method,
+}) {
+  for (final day in weekendDays) {
+    if (day < DateTime.monday || day > DateTime.sunday) {
+      throw ArgumentError.value(
+        day,
+        'weekendDays',
+        '$method() requires weekendDays entries in 1..7 '
+            '(DateTime.monday..DateTime.sunday).',
+      );
+    }
+  }
+}
+
+void _validateTraversalConfig(
+  BusinessDayConfig config, {
+  required String method,
+  bool requireWeekendBoundary = false,
+}) {
+  _validateWeekendDays(config.weekendDays, method: method);
+  if (config.weekendDays.length >= 7) {
+    throw StateError('No business days possible: all weekdays are weekends.');
+  }
+  if (requireWeekendBoundary && config.weekendDays.isEmpty) {
+    throw StateError(
+      '$method() requires at least one weekend day to determine '
+      'business-week boundaries.',
+    );
+  }
+}
+
+void _requireValidBusinessDate(Hora value, String method) {
+  if (!value.isValid) {
+    throw StateError('$method() requires a valid Hora instance.');
+  }
+}
+
 /// A calendar of holidays for business day calculations.
 ///
 /// Holidays can be defined as specific dates or recurring annual dates.
@@ -141,6 +182,7 @@ extension BusinessDayExt on Hora {
   /// A business day is one that is not a weekend and not a holiday.
   bool isBusinessDay([BusinessDayConfig config = BusinessDayConfig.standard]) {
     if (!isValid) return false;
+    _validateWeekendDays(config.weekendDays, method: 'isBusinessDay');
 
     // Check if weekend
     if (config.weekendDays.contains(weekday)) {
@@ -157,10 +199,15 @@ extension BusinessDayExt on Hora {
 
   /// Checks if this date is a weekend.
   bool isWeekendDay([BusinessDayConfig config = BusinessDayConfig.standard]) =>
-      config.weekendDays.contains(weekday);
+      isValid &&
+      (() {
+        _validateWeekendDays(config.weekendDays, method: 'isWeekendDay');
+        return config.weekendDays.contains(weekday);
+      })();
 
   /// Checks if this date is a holiday.
   bool isHoliday([HolidayCalendar? calendar]) {
+    if (!isValid) return false;
     if (calendar == null) return false;
     return calendar.isHoliday(dateTime);
   }
@@ -172,9 +219,21 @@ extension BusinessDayExt on Hora {
   Hora nextBusinessDay([
     BusinessDayConfig config = BusinessDayConfig.standard,
   ]) {
+    _requireValidBusinessDate(this, 'nextBusinessDay');
+    _validateTraversalConfig(config, method: 'nextBusinessDay');
+
     var current = this;
+    var iterations = 0;
     while (!current.isBusinessDay(config)) {
       current = current.add(1, TemporalUnit.day);
+      iterations++;
+      if (iterations > _maxBusinessDaySearchIterations) {
+        throw StateError(
+          'nextBusinessDay() exceeded search guard '
+          '($_maxBusinessDaySearchIterations days). '
+          'Check weekend/holiday configuration.',
+        );
+      }
     }
     return current;
   }
@@ -186,9 +245,21 @@ extension BusinessDayExt on Hora {
   Hora previousBusinessDay([
     BusinessDayConfig config = BusinessDayConfig.standard,
   ]) {
+    _requireValidBusinessDate(this, 'previousBusinessDay');
+    _validateTraversalConfig(config, method: 'previousBusinessDay');
+
     var current = this;
+    var iterations = 0;
     while (!current.isBusinessDay(config)) {
       current = current.subtract(1, TemporalUnit.day);
+      iterations++;
+      if (iterations > _maxBusinessDaySearchIterations) {
+        throw StateError(
+          'previousBusinessDay() exceeded search guard '
+          '($_maxBusinessDaySearchIterations days). '
+          'Check weekend/holiday configuration.',
+        );
+      }
     }
     return current;
   }
@@ -201,6 +272,8 @@ extension BusinessDayExt on Hora {
   Hora nearestBusinessDay([
     BusinessDayConfig config = BusinessDayConfig.standard,
   ]) {
+    _requireValidBusinessDate(this, 'nearestBusinessDay');
+    _validateTraversalConfig(config, method: 'nearestBusinessDay');
     if (isBusinessDay(config)) return this;
 
     final next = nextBusinessDay(config);
@@ -222,16 +295,27 @@ extension BusinessDayExt on Hora {
     int days, [
     BusinessDayConfig config = BusinessDayConfig.standard,
   ]) {
+    _requireValidBusinessDate(this, 'addBusinessDays');
+    _validateTraversalConfig(config, method: 'addBusinessDays');
     if (days == 0) return this;
 
     var current = this;
     var remaining = days.abs();
     final direction = days.isNegative ? -1 : 1;
+    var iterations = 0;
+    final maxIterations = days.abs() * 20 + _maxBusinessDaySearchIterations;
 
     while (remaining > 0) {
       current = direction > 0
           ? current.add(1, TemporalUnit.day)
           : current.subtract(1, TemporalUnit.day);
+      iterations++;
+      if (iterations > maxIterations) {
+        throw StateError(
+          'addBusinessDays() exceeded search guard ($maxIterations steps). '
+          'Check weekend/holiday configuration.',
+        );
+      }
 
       if (current.isBusinessDay(config)) {
         remaining--;
@@ -255,6 +339,7 @@ extension BusinessDayExt on Hora {
     Hora other, [
     BusinessDayConfig config = BusinessDayConfig.standard,
   ]) {
+    _validateWeekendDays(config.weekendDays, method: 'businessDaysBetween');
     if (!isValid || !other.isValid) return 0;
 
     final start = isBefore(other) ? this : other;
@@ -280,6 +365,13 @@ extension BusinessDayExt on Hora {
   Hora startOfBusinessWeek([
     BusinessDayConfig config = BusinessDayConfig.standard,
   ]) {
+    _requireValidBusinessDate(this, 'startOfBusinessWeek');
+    _validateTraversalConfig(
+      config,
+      method: 'startOfBusinessWeek',
+      requireWeekendBoundary: true,
+    );
+
     var current = startOf(TemporalUnit.day);
 
     // Find the first non-weekend day of the week
@@ -301,6 +393,13 @@ extension BusinessDayExt on Hora {
   Hora endOfBusinessWeek([
     BusinessDayConfig config = BusinessDayConfig.standard,
   ]) {
+    _requireValidBusinessDate(this, 'endOfBusinessWeek');
+    _validateTraversalConfig(
+      config,
+      method: 'endOfBusinessWeek',
+      requireWeekendBoundary: true,
+    );
+
     var current = startOf(TemporalUnit.day);
 
     // Find the last non-weekend day of the week
