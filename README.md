@@ -90,6 +90,15 @@ Hora.of(year: 2024, month: 6, day: 15, hour: 10, minute: 30, second: 45)
 // From DateTime
 Hora.fromDateTime(DateTime.now())
 
+// Unified input (2.0-friendly)
+Hora.from(DateTime.now())
+Hora.from('2024-06-15')
+Hora.from(1718409600000) // auto-detect unix precision
+Hora.from({'year': 2024, 'month': 6, 'day': 15})
+Hora.tryFrom(anyValue) // null on invalid/unsupported
+Hora.fromTimestamp(1718409600, unit: UnixTimestampUnit.seconds)
+Hora.fromMap({'date': '2024-06-15', 'hour': 9, 'minute': 30})
+
 // From timestamp
 Hora.unix(1718409600)
 Hora.unixMillis(1718409600000)
@@ -97,8 +106,16 @@ Hora.unixMillis(1718409600000)
 // Parse string
 Hora.parse('2024-06-15')
 Hora.parse('2024-06-15T10:30:00')
+Hora.parse('2024/06/15', mode: HoraParseMode.smart)
+Hora.parse('2024/06/15', mode: HoraParseMode.strict) // Invalid Hora
 Hora.tryParse('invalid') // returns null instead of invalid Hora
 ```
+
+Map input in `Hora.fromMap` / `Hora.from({...})` is strict and fail-fast:
+- Use exactly one timestamp source (`unixMicros`, `unixMillis`, `unix`, or `timestamp`)
+- Do not mix timestamp fields with date/component fields
+- Alias keys must not conflict (for example `year` and `years`)
+- `date` must be a parseable `String`, `DateTime`, or valid `Hora`
 
 ### Date Components
 
@@ -132,6 +149,8 @@ All manipulation methods return new instances:
 h.add(1, TemporalUnit.day)
 h.subtract(2, TemporalUnit.week)
 h.addDuration(Duration(hours: 5))
+h.plus(months: 1, days: 3, hours: 2)  // multi-unit add
+h.minus(weeks: 1, minutes: 30)         // multi-unit subtract
 
 // Start/end of units
 h.startOf(TemporalUnit.month)  // First day of month, 00:00:00
@@ -139,6 +158,7 @@ h.endOf(TemporalUnit.day)      // 23:59:59.999999
 
 // Copy with modifications
 h.copyWith(hour: 10, minute: 0)
+h.set(hour: 10, minute: 0) // alias of copyWith
 ```
 
 ### Temporal Units
@@ -170,6 +190,7 @@ h1.isSame(h2, TemporalUnit.day)  // Same day?
 h1.isSameOrBefore(h2)
 h1.isSameOrAfter(h2)
 h1.isBetween(start, end)
+h1.isBetweenWith(start, end, inclusivity: HoraInclusivity.includeStart)
 
 h1.difference(h2)  // Returns Duration
 h1.diff(h2, TemporalUnit.day)  // Returns num
@@ -441,6 +462,11 @@ Duration(days: 5).toHoraDuration()
 // Int timestamps
 1718409600.asUnixSeconds
 1718409600000.asUnixMillis
+1718409600000000.asUnixMicros
+1718409600.asUnix(unit: UnixTimestampUnit.seconds)
+
+// Map parsing
+{'year': 2024, 'month': 6, 'day': 15}.toHora()
 
 // Range generation
 start.rangeTo(end, step: TemporalUnit.day)  // Iterable<Hora>
@@ -484,26 +510,37 @@ final zhLocale = const HoraLocaleZhCn();
 h.withLocale(zhLocale).localizedFormat('LL')  // Uses Chinese format
 ```
 
-### WeekYear
+### Week
 
-Calculate week-year values for fiscal/ISO calendar reporting:
+Calculate week numbers and week-years with ISO/US/locale/custom configurations:
 
 ```dart
 import 'package:hora/hora.dart';
-import 'package:hora/src/plugins/week_year.dart';
+import 'package:hora/src/plugins/week.dart';
 
 final h = Hora.of(year: 2024, month: 1, day: 1);
 
-// ISO week-year (default)
-h.weekYear()          // 2024
-h.weekOfWeekYear()    // 1
-h.weeksInWeekYear()   // 52
+// ISO week system (default)
+h.weekOfYear()   // 1
+h.weekYear()     // 2024
+h.weeksInYear()  // 52 (or 53)
 
-// US week configuration (Sunday start)
-h.weekYear(WeekYearConfig.us)
-h.weekOfWeekYear(WeekYearConfig.us)
+// Locale-aware shortcuts
+h.localeWeek
+h.localeWeekYear
 
-// Set week-year
+// US/custom week configuration
+h.weekOfYear(config: WeekConfig.us)
+h.startOfWeek(config: WeekConfig.us)
+h.daysOfWeekWith(
+  config: const WeekConfig(
+    firstDayOfWeek: DateTime.saturday,
+    minDaysInFirstWeek: 1,
+  ),
+)
+
+// Set week position
+h.setWeekOfYear(10)
 h.setWeekYear(2025)
 ```
 
@@ -518,7 +555,7 @@ import 'package:hora/src/plugins/update_locale.dart';
 // Create updated locale from base
 final customLocale = const HoraLocaleEn().update(
   weekStart: DateTime.monday,
-  months: ['Jan', 'Feb', 'Mar', ...],
+  yearStart: 4,
 );
 
 // Update relative time settings
@@ -536,6 +573,11 @@ final fmtLocale = const HoraLocaleEn().updateFormats(
 // Use updated locale
 final h = Hora.now(locale: customLocale);
 ```
+
+`update()` / `updateFormats()` / `updateRelativeTime()` now validate overrides strictly:
+- `months` / `monthsShort` must contain exactly 12 entries
+- `weekdays` / `weekdaysShort` / `weekdaysMin` must contain exactly 7 entries
+- `weekStart` must be `1..7`, and `yearStart` must be `1..7`
 
 ### ObjectSupport
 
@@ -566,7 +608,14 @@ h.setObject({'hour': 10, 'minute': 0})
 // Get/set by key
 h.getByKey('month')  // 6
 h.setByKey('day', 20)
+
+// Typed get/set fields
+h.getByField(HoraGetField.isoWeek)
+h.setByField(HoraSetField.day, 20)
 ```
+
+`HoraObject` / object-support map APIs use `Map<String, Object?>` in 2.0, and
+`getByKey()` / `setByKey()` now throw `ArgumentError` for unsupported keys.
 
 ### Other Plugins
 
@@ -579,7 +628,7 @@ Hora includes many more plugins:
 | `businessDay`       | Business day calculations                     |
 | `calendar`          | Calendar-style date formatting                |
 | `customParseFormat` | Parse dates with custom format strings        |
-| `duration`          | Advanced duration handling                    |
+| `durationExt`       | Advanced duration handling                    |
 | `fiscalYear`        | Fiscal year calculations                      |
 | `localeData`        | Access locale data programmatically           |
 | `minMax`            | Find min/max in date collections              |
@@ -587,7 +636,7 @@ Hora includes many more plugins:
 | `recurrence`        | Recurring date patterns                       |
 | `relativeTime`      | Human-readable relative time                  |
 | `timezone`          | Timezone support                              |
-| `weekOfYear`        | Week of year calculations                     |
+| `week`              | Unified week calculations                     |
 
 ## Comparison with Other Libraries
 

@@ -90,6 +90,15 @@ Hora.of(year: 2024, month: 6, day: 15, hour: 10, minute: 30, second: 45)
 // 从 DateTime 创建
 Hora.fromDateTime(DateTime.now())
 
+// 统一输入（2.0 友好）
+Hora.from(DateTime.now())
+Hora.from('2024-06-15')
+Hora.from(1718409600000) // 自动识别时间戳精度
+Hora.from({'year': 2024, 'month': 6, 'day': 15})
+Hora.tryFrom(anyValue) // 无效或不支持时返回 null
+Hora.fromTimestamp(1718409600, unit: UnixTimestampUnit.seconds)
+Hora.fromMap({'date': '2024-06-15', 'hour': 9, 'minute': 30})
+
 // 从时间戳创建
 Hora.unix(1718409600)
 Hora.unixMillis(1718409600000)
@@ -97,8 +106,16 @@ Hora.unixMillis(1718409600000)
 // 解析字符串
 Hora.parse('2024-06-15')
 Hora.parse('2024-06-15T10:30:00')
+Hora.parse('2024/06/15', mode: HoraParseMode.smart)
+Hora.parse('2024/06/15', mode: HoraParseMode.strict) // 无效 Hora
 Hora.tryParse('invalid') // 返回 null 而非无效的 Hora
 ```
+
+`Hora.fromMap` / `Hora.from({...})` 的 Map 输入是严格且快速失败的：
+- 时间戳只能使用一种来源（`unixMicros`、`unixMillis`、`unix`、`timestamp` 四选一）
+- 时间戳字段不能与日期/组件字段混用
+- 别名键值不能冲突（例如 `year` 与 `years`）
+- `date` 只能是可解析的 `String`、`DateTime` 或有效的 `Hora`
 
 ### 日期组件
 
@@ -132,6 +149,8 @@ h.daysInMonth // 30（当月天数）
 h.add(1, TemporalUnit.day)
 h.subtract(2, TemporalUnit.week)
 h.addDuration(Duration(hours: 5))
+h.plus(months: 1, days: 3, hours: 2)  // 多单位增加
+h.minus(weeks: 1, minutes: 30)         // 多单位减少
 
 // 单位的开始/结束
 h.startOf(TemporalUnit.month)  // 月初，00:00:00
@@ -139,6 +158,7 @@ h.endOf(TemporalUnit.day)      // 23:59:59.999999
 
 // 复制并修改
 h.copyWith(hour: 10, minute: 0)
+h.set(hour: 10, minute: 0) // copyWith 的别名
 ```
 
 ### 时间单位
@@ -170,6 +190,7 @@ h1.isSame(h2, TemporalUnit.day)  // 是同一天吗？
 h1.isSameOrBefore(h2)
 h1.isSameOrAfter(h2)
 h1.isBetween(start, end)
+h1.isBetweenWith(start, end, inclusivity: HoraInclusivity.includeStart)
 
 h1.difference(h2)  // 返回 Duration
 h1.diff(h2, TemporalUnit.day)  // 返回 num
@@ -422,6 +443,7 @@ class HoraLocaleEs extends HoraLocale {
   @override
   String ordinal(int n, [String? unit]) => '${n}º';
 }
+```
 
 ## 扩展
 
@@ -440,6 +462,11 @@ Duration(days: 5).toHoraDuration()
 // 整数时间戳
 1718409600.asUnixSeconds
 1718409600000.asUnixMillis
+1718409600000000.asUnixMicros
+1718409600.asUnix(unit: UnixTimestampUnit.seconds)
+
+// Map 解析
+{'year': 2024, 'month': 6, 'day': 15}.toHora()
 
 // 范围生成
 start.rangeTo(end, step: TemporalUnit.day)  // Iterable<Hora>
@@ -483,26 +510,37 @@ final zhLocale = const HoraLocaleZhCn();
 h.withLocale(zhLocale).localizedFormat('LL')  // 使用中文格式
 ```
 
-### WeekYear（周年）
+### Week（周插件）
 
-计算财务/ISO 日历报告的周年值：
+基于 ISO / 美式 / 本地化 / 自定义规则计算周数和周所属年份：
 
 ```dart
 import 'package:hora/hora.dart';
-import 'package:hora/src/plugins/week_year.dart';
+import 'package:hora/src/plugins/week.dart';
 
 final h = Hora.of(year: 2024, month: 1, day: 1);
 
-// ISO 周年（默认）
-h.weekYear()          // 2024
-h.weekOfWeekYear()    // 1
-h.weeksInWeekYear()   // 52
+// ISO 周体系（默认）
+h.weekOfYear()   // 1
+h.weekYear()     // 2024
+h.weeksInYear()  // 52（或 53）
 
-// 美国周配置（周日开始）
-h.weekYear(WeekYearConfig.us)
-h.weekOfWeekYear(WeekYearConfig.us)
+// 本地化快捷属性
+h.localeWeek
+h.localeWeekYear
 
-// 设置周年
+// 美式/自定义周配置
+h.weekOfYear(config: WeekConfig.us)
+h.startOfWeek(config: WeekConfig.us)
+h.daysOfWeekWith(
+  config: const WeekConfig(
+    firstDayOfWeek: DateTime.saturday,
+    minDaysInFirstWeek: 1,
+  ),
+)
+
+// 设置周位置
+h.setWeekOfYear(10)
 h.setWeekYear(2025)
 ```
 
@@ -517,7 +555,7 @@ import 'package:hora/src/plugins/update_locale.dart';
 // 从基础语言环境创建更新的版本
 final customLocale = const HoraLocaleEn().update(
   weekStart: DateTime.monday,
-  months: ['Jan', 'Feb', 'Mar', ...],
+  yearStart: 4,
 );
 
 // 更新相对时间设置
@@ -535,6 +573,11 @@ final fmtLocale = const HoraLocaleEn().updateFormats(
 // 使用更新的语言环境
 final h = Hora.now(locale: customLocale);
 ```
+
+`update()` / `updateFormats()` / `updateRelativeTime()` 现在会严格校验覆盖值：
+- `months` / `monthsShort` 必须正好 12 项
+- `weekdays` / `weekdaysShort` / `weekdaysMin` 必须正好 7 项
+- `weekStart` 必须在 `1..7`，`yearStart` 必须在 `1..7`
 
 ### ObjectSupport（对象支持）
 
@@ -565,7 +608,14 @@ h.setObject({'hour': 10, 'minute': 0})
 // 按键获取/设置
 h.getByKey('month')  // 6
 h.setByKey('day', 20)
+
+// 类型安全字段读写
+h.getByField(HoraGetField.isoWeek)
+h.setByField(HoraSetField.day, 20)
 ```
+
+2.0 中 `HoraObject` / object-support 的 Map API 使用 `Map<String, Object?>`，
+并且 `getByKey()` / `setByKey()` 对不支持的 key 会抛出 `ArgumentError`。
 
 ### 其他插件
 
@@ -578,7 +628,7 @@ Hora 还包含更多插件：
 | `businessDay`       | 工作日计算                  |
 | `calendar`          | 日历样式日期格式化              |
 | `customParseFormat` | 使用自定义格式字符串解析日期         |
-| `duration`          | 高级时长处理                 |
+| `durationExt`       | 高级时长处理                 |
 | `fiscalYear`        | 财年计算                   |
 | `localeData`        | 以编程方式访问语言环境数据          |
 | `minMax`            | 在日期集合中查找最小/最大值         |
@@ -586,7 +636,7 @@ Hora 还包含更多插件：
 | `recurrence`        | 重复日期模式                 |
 | `relativeTime`      | 人类可读的相对时间              |
 | `timezone`          | 时区支持                   |
-| `weekOfYear`        | 年周计算                   |
+| `week`              | 统一的周计算                 |
 
 ## 与其他库的比较
 

@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-02-18
+
+### Breaking Changes
+- Replaced `week_of_year.dart` and `week_year.dart` exports with a unified `week.dart` plugin.
+- Week API migration: `weekOfWeekYear()` -> `weekOfYear()`, `weeksInWeekYear()` -> `weeksInYear()`, and `WeekYearConfig` -> `WeekConfig`.
+- `Hora.fromMap()` / `Hora.from({...})` now enforce strict, fail-fast map parsing (conflicting aliases, unsupported keys, and mixed timestamp/component inputs are rejected).
+- Map-based public APIs now use `Map<String, Object?>` instead of `Map<String, dynamic>`.
+- `getByKey()` / `setByKey()` in object-support now throw `ArgumentError` for unsupported keys (no silent null/no-op fallback).
+
+### Added
+- Unified input APIs: `Hora.from()`, `Hora.tryFrom()`, `Hora.fromMap()`, and `Hora.fromTimestamp()`.
+- Input control enums: `HoraParseMode` (`strict`/`smart`) and `UnixTimestampUnit` (`auto`/`seconds`/`milliseconds`/`microseconds`).
+- Multi-unit manipulation APIs: `plus()`, `minus()`, and `set()` alias.
+- Typed interval API: `HoraInclusivity` + `isBetweenWith(...)`.
+- Map extension APIs: `Map<String, Object?>.toHora()` and `.tryToHora()`.
+- Unified week plugin (`week.dart`) with `WeekConfig` (ISO, US, locale-aware, and custom week rules).
+- Typed object support fields (`HoraGetField`, `HoraSetField`) in object-support plugin.
+- CI and local quality automation via `.github/workflows/ci.yml` and `tool/quality_gate.sh`.
+
+### Changed
+- Refactored object-support plugin to delegate map creation/parsing to core `Hora` APIs and unify object delta application.
+- Improved recurrence plugin validation and matching logic for interval/count/weekday constraints and edge cases.
+- Improved precision plugin rounding/truncation with UTC-preserving construction and boundary-based rounding.
+- Improved timezone plugin with strict offset validation and microsecond-precision conversions.
+- Improved calendar plugin token handling (`L`, `LT`, `LTS`, `LL`, `LLL`, `LLLL`) and weekday parameter validation.
+- Improved range helpers (`rangeTo`, `take`) with stronger argument validation on invalid inputs.
+- Updated `README.md` and `README.zh-CN.md` for 2.0 APIs, migration notes, and stricter locale-update constraints.
+- Expanded 2.0 test suite with deterministic parameterized/property-style boundary checks for timestamp unit auto-detection, week invariants, timezone offset round-trips, precision idempotence, fiscal period bounds, and recurrence range slicing.
+
+### Fixed
+- Fixed UTC/local consistency in `dayOfYear`, ISO week calculations, and related week/year boundaries.
+- Fixed `HoraDuration.parse()` accepting empty ISO duration payloads.
+- Fixed `HoraDuration` arithmetic/compare semantics for stable ordering and finite-factor checks.
+- Fixed duration extension totals/humanization behavior for negative and sub-second durations.
+- Fixed Japanese era boundary handling to use exact era start dates (not month-only checks).
+- Fixed fiscal-year end boundary computation for leap-sensitive configurations (for example `startMonth: 2, startDay: 29`).
+- Fixed fiscal quarter boundary handling for pre-boundary dates in `startMonth` so they map to fiscal month 12 / quarter 4 (preventing invalid quarter 5 outcomes).
+- Fixed `update_locale` runtime validation to reject invalid override lengths/ranges early.
+
 ## [1.1.0] - 2025-12-06
 
 ### Fixed
@@ -132,59 +171,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Comprehensive test suite covering all features
 - Unit tests for core classes, extensions, and utilities
 - Edge case handling for date boundaries, leap years, timezone transitions
-
-## [Unreleased]
-
-### Added
-
-#### Internationalization - 143 Built-in Locales
-
-Hora now includes **143 locale definitions** converted from dayjs, covering major world languages:
-
-- **European**: de, fr, es, it, pt, nl, pl, ru, uk, cs, sk, hu, ro, bg, el, tr, sv, da, nb, fi, et, lv, lt, be, hr, sl, sq, sr, mk, bs, me, is, ga, gd, cy, br, fy, lb, fo, nn, eo, and regional variants
-- **Asian**: zh, zh-cn, zh-tw, zh-hk, ja, ko, th, vi, id, ms, ms-my, tl-ph, km, lo, my, bn, bn-bd, hi, ta, te, kn, ml, gu, mr, pa-in, ne, si, bo, ug-cn, and more
-- **Middle Eastern**: ar (and regional variants: ar-sa, ar-eg, ar-dz, ar-iq, ar-kw, ar-ly, ar-ma, ar-tn), fa, he, ur, ku, az, kk, ky, tk, uz, uz-latn, tg
-- **African**: sw, yo, am, rn, rw, ss
-- **Others**: eo (Esperanto), tlh (Klingon), x-pseudo (pseudo-localization)
-
-**Tree-Shaking Support**: Each locale is a separate file. Import only what you need:
-
-```dart
-import 'package:hora/hora.dart';                  // Includes en, zh-cn
-import 'package:hora/src/locales/ja.dart';        // Japanese
-import 'package:hora/src/locales/de.dart';        // German
-
-final h = Hora.now(locale: const HoraLocaleJa());
-```
-
-#### New Plugins
-- **LocalizedFormat plugin**: Format dates using locale-specific format strings
-  - `localizedFormat()`: Format using tokens like `LT`, `LTS`, `L`, `LL`, `LLL`, `LLLL`
-  - Predefined presets for common locales (en, en-GB, zh-CN, ja, ko, de, fr, es, ru, ar, pt-BR, it)
-  - Automatic locale detection from Hora instance
-
-- **WeekYear plugin**: Week-year calculations for ISO and US calendars
-  - `weekYear()`: Get the week-year value
-  - `weekOfWeekYear()`: Get the week number within the week-year
-  - `weeksInWeekYear()`: Get total weeks in the week-year
-  - `setWeekYear()`: Create new instance with specified week-year
-  - Support for both ISO (Monday start) and US (Sunday start) week configurations
-
-- **UpdateLocale plugin**: Runtime locale modification
-  - `update()`: Create modified locale with overridden properties
-  - `updateRelativeTime()`: Override relative time expressions
-  - `updateFormats()`: Override format strings
-  - `UpdatedLocale` class for wrapping base locales with modifications
-
-- **ObjectSupport plugin**: Map-based date creation and manipulation
-  - `HoraObject.from()`: Create Hora from Map
-  - `addObject()`: Add time using Map values
-  - `subtractObject()`: Subtract time using Map values  
-  - `setObject()`: Set date components using Map
-  - `getByKey()` / `setByKey()`: Access components by string key
-
-### Improved
-
-- **HoraFormats**: Added descriptive getter aliases (`timeShort`, `timeLong`, `dateShort`, `dateLong`, `dateTimeLong`, `dateTimeFull`)
-- **HoraLocale**: Improved documentation with usage examples
-- **HoraRelativeTime**: Better documentation explaining placeholders

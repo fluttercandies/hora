@@ -48,7 +48,7 @@ Please be respectful and considerate in all interactions. We are committed to pr
 We follow the official [Dart Style Guide](https://dart.dev/guides/language/effective-dart/style). Key points:
 
 - Use `dart format` to format your code
-- Run `dart analyze` and fix any issues
+- Run `dart analyze --fatal-infos --fatal-warnings` and fix any issues
 - Follow naming conventions:
   - `camelCase` for variables and functions
   - `PascalCase` for classes
@@ -62,6 +62,20 @@ We follow the official [Dart Style Guide](https://dart.dev/guides/language/effec
   dart test
   ```
 - Aim for high test coverage
+
+### Quality Gate
+
+Use the same quality gate locally and in CI:
+
+```bash
+./tool/quality_gate.sh
+```
+
+If you need to validate publishability before release:
+
+```bash
+./tool/quality_gate.sh --publish-dry-run
+```
 
 ### Commit Messages
 
@@ -98,8 +112,7 @@ docs(readme): add calendar formatting examples
 3. Add tests for your changes
 4. Run the full test suite:
    ```bash
-   dart analyze
-   dart test
+   ./tool/quality_gate.sh
    ```
 5. Update CHANGELOG.md with your changes
 6. Submit your pull request with a clear description
@@ -121,7 +134,7 @@ Include:
 
 ## Adding a New Locale
 
-1. Create a new file in `lib/src/locale/` (e.g., `ja.dart`)
+1. Create a new file in `lib/src/locales/` (e.g., `ja.dart`)
 2. Implement the `HoraLocale` class:
 
 ```dart
@@ -184,9 +197,9 @@ class HoraLocaleJa extends HoraLocale {
 }
 ```
 
-3. Export the locale in `lib/hora.dart`
-4. Register in `HoraLocales` in `lib/src/locale.dart`
-5. Add tests in `test/locale/`
+3. Export the locale in `lib/src/locales/locales.dart` (full-locale export set)
+4. Optionally add convenience export in `lib/src/locale.dart` if intended as a default bundled locale
+5. Add tests in `test/locale_test.dart` or a dedicated locale test file
 6. Update documentation
 
 ## Reporting Issues
