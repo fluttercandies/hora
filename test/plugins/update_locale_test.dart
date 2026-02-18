@@ -60,6 +60,24 @@ void main() {
         expect(updated.meridiem(10, 0), equals('before noon'));
         expect(updated.meridiem(14, 0), equals('after noon'));
       });
+
+      test('throws when direct override uses invalid month list length', () {
+        final updated = UpdatedLocale(
+          const HoraLocaleEn(),
+          months: const ['OnlyOne'],
+        );
+
+        expect(() => updated.months, throwsStateError);
+      });
+
+      test('throws when direct override uses invalid weekStart', () {
+        final updated = UpdatedLocale(
+          const HoraLocaleEn(),
+          weekStart: 0,
+        );
+
+        expect(() => updated.weekStart, throwsStateError);
+      });
     });
 
     group('UpdateLocaleExtension', () {
@@ -78,6 +96,20 @@ void main() {
 
         expect(updated.weekStart, equals(DateTime.monday));
         expect(updated.code, equals('en-custom'));
+      });
+
+      test('update validates override list length', () {
+        final base = const HoraLocaleEn();
+        expect(
+          () => base.update(monthsShort: const ['Jan']),
+          throwsArgumentError,
+        );
+      });
+
+      test('update validates weekStart and yearStart ranges', () {
+        final base = const HoraLocaleEn();
+        expect(() => base.update(weekStart: 0), throwsArgumentError);
+        expect(() => base.update(yearStart: 0), throwsArgumentError);
       });
     });
 
@@ -166,6 +198,30 @@ void main() {
 
         // Monday start should give June 12 (Monday)
         expect(hMonday.weekday, equals(DateTime.monday));
+      });
+
+      test('updateHoraGlobalLocale updates and preserves unspecified fields',
+          () {
+        final original = Hora.globalLocale;
+        try {
+          updateHoraGlobalLocale(code: 'en-global-test');
+          expect(Hora.globalLocale.code, equals('en-global-test'));
+          expect(Hora.globalLocale.weekStart, equals(original.weekStart));
+        } finally {
+          Hora.globalLocale = original;
+        }
+      });
+
+      test('updateHoraGlobalLocale validates inputs', () {
+        final original = Hora.globalLocale;
+        try {
+          expect(
+            () => updateHoraGlobalLocale(weekdays: const ['Mon']),
+            throwsArgumentError,
+          );
+        } finally {
+          Hora.globalLocale = original;
+        }
       });
     });
   });

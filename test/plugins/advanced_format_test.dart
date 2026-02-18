@@ -48,6 +48,33 @@ void main() {
         expect(Hora.of(year: 2024, month: 2).advancedFormat('DDD'), '32');
       });
 
+      test('supports added advanced tokens (S/SS, WW/ww, E, ZZ)', () {
+        final h = Hora.of(
+          year: 2024,
+          month: 3,
+          day: 15,
+          hour: 12,
+          millisecond: 987,
+          utc: true,
+        );
+
+        expect(h.advancedFormat('S'), '9');
+        expect(h.advancedFormat('SS'), '98');
+        expect(h.advancedFormat('WW'), h.isoWeek.toString().padLeft(2, '0'));
+        expect(h.advancedFormat('ww'), h.isoWeek.toString().padLeft(2, '0'));
+        expect(h.advancedFormat('E'), h.weekday.toString());
+        expect(h.advancedFormat('ZZ'), '+0000');
+      });
+
+      test('locale week-year tokens are timezone-mode stable for same date',
+          () {
+        final local = Hora.of(year: 2024);
+        final utc = Hora.of(year: 2024, utc: true);
+
+        expect(local.advancedFormat('gggg'), utc.advancedFormat('gggg'));
+        expect(local.advancedFormat('gg'), utc.advancedFormat('gg'));
+      });
+
       test('formats hour 1-24 (k, kk)', () {
         final midnight = Hora.of(year: 2024, month: 3, day: 15);
         final noon = Hora.of(year: 2024, month: 3, day: 15, hour: 12);

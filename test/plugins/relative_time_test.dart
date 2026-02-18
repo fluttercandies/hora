@@ -10,9 +10,23 @@ void main() {
         expect(past.relativeFromNow(), contains('second'));
       });
 
+      test('respects second-to-minute threshold boundary', () {
+        final sec44 = Hora.now().subtract(44, TemporalUnit.second);
+        final sec45 = Hora.now().subtract(45, TemporalUnit.second);
+        expect(sec44.relativeFromNow(), contains('second'));
+        expect(sec45.relativeFromNow(), contains('minute'));
+      });
+
       test('formats minutes ago', () {
         final past = Hora.now().subtract(5, TemporalUnit.minute);
         expect(past.relativeFromNow(), contains('minute'));
+      });
+
+      test('respects minute-to-hour threshold boundary', () {
+        final min44 = Hora.now().subtract(44, TemporalUnit.minute);
+        final min45 = Hora.now().subtract(45, TemporalUnit.minute);
+        expect(min44.relativeFromNow(), contains('minute'));
+        expect(min45.relativeFromNow(), contains('hour'));
       });
 
       test('formats hours ago', () {
@@ -60,6 +74,16 @@ void main() {
       });
     });
 
+    group('relativeTo', () {
+      test('formats relation to another date', () {
+        final base = Hora.of(year: 2024, month: 3);
+        final future = Hora.of(year: 2024, month: 3, day: 3);
+        final result = base.relativeTo(future);
+        expect(result, contains('day'));
+        expect(result, contains('in'));
+      });
+    });
+
     group('relativeFromNowShort', () {
       test('formats short seconds', () {
         final past = Hora.now().subtract(30, TemporalUnit.second);
@@ -89,6 +113,12 @@ void main() {
   });
 
   group('diffFromDetailed', () {
+    test('diffFromNowDetailed returns detailed diff from now', () {
+      final past = Hora.now().subtract(2, TemporalUnit.hour);
+      final diff = past.diffFromNowDetailed();
+      expect(diff.totalHours, greaterThanOrEqualTo(2));
+    });
+
     test('returns detailed breakdown', () {
       final h1 = Hora.of(year: 2024);
       final h2 = Hora.of(year: 2024, day: 3, hour: 5);

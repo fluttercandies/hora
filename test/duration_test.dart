@@ -25,6 +25,8 @@ void main() {
     });
 
     test('convenience constructors', () {
+      expect(HoraDuration.ofMicroseconds(2).microseconds, 2);
+      expect(HoraDuration.ofMilliseconds(3).milliseconds, 3);
       expect(HoraDuration.ofYears(2).years, 2);
       expect(HoraDuration.ofMonths(6).months, 6);
       expect(HoraDuration.ofWeeks(2).weeks, 2);
@@ -99,8 +101,18 @@ void main() {
       expect(d.days, 1);
     });
 
+    test('parse negative zero canonicalizes to non-negative zero', () {
+      final d = HoraDuration.parse('-P0D');
+      expect(d.isZero, isTrue);
+      expect(d.isNegative, isFalse);
+      expect(d.toIso8601(), 'PT0S');
+    });
+
     test('tryParse returns null for invalid', () {
       expect(HoraDuration.tryParse('invalid'), isNull);
+      expect(HoraDuration.tryParse('P'), isNull);
+      expect(HoraDuration.tryParse('PT'), isNull);
+      expect(HoraDuration.tryParse('-P'), isNull);
     });
 
     test('parse throws for invalid', () {
@@ -162,10 +174,35 @@ void main() {
       expect(normalized.weeks, 1);
     });
 
+    test('subtraction keeps components non-negative for mixed month/day deltas',
+        () {
+      final diff = HoraDuration(months: 1) - HoraDuration(days: 40);
+
+      expect(diff.isNegative, isTrue);
+      expect(diff.years, greaterThanOrEqualTo(0));
+      expect(diff.months, greaterThanOrEqualTo(0));
+      expect(diff.weeks, greaterThanOrEqualTo(0));
+      expect(diff.days, greaterThanOrEqualTo(0));
+      expect(diff.hours, greaterThanOrEqualTo(0));
+      expect(diff.minutes, greaterThanOrEqualTo(0));
+      expect(diff.seconds, greaterThanOrEqualTo(0));
+      expect(diff.milliseconds, greaterThanOrEqualTo(0));
+      expect(diff.microseconds, greaterThanOrEqualTo(0));
+      expect(diff.toIso8601(), isNot(contains('T-')));
+      expect(diff.toIso8601(), isNot(contains('P-')));
+    });
+
     test('multiplication', () {
       final d = HoraDuration(days: 5);
       final result = d * 3;
       expect(result.inDays, 15);
+    });
+
+    test('multiplication rejects NaN/Infinity', () {
+      final d = HoraDuration(days: 5);
+      expect(() => d * double.nan, throwsArgumentError);
+      expect(() => d * double.infinity, throwsArgumentError);
+      expect(() => d * double.negativeInfinity, throwsArgumentError);
     });
 
     test('abs()', () {
@@ -253,12 +290,39 @@ void main() {
       expect(d2.compareTo(d1), isPositive);
     });
 
+    test('compareTo includes sub-second precision', () {
+      final d1 = HoraDuration(seconds: 1, milliseconds: 1);
+      final d2 = HoraDuration(seconds: 1);
+      expect(d1.compareTo(d2), isPositive);
+      expect(d2.compareTo(d1), isNegative);
+    });
+
+    test('compareTo breaks approximation ties deterministically', () {
+      final d1 = HoraDuration(months: 1);
+      final d2 = HoraDuration(days: 30, hours: 10, minutes: 30); // 30.4375 days
+      expect(d1.asDuration().inMicroseconds, d2.asDuration().inMicroseconds);
+      expect(d1 == d2, isFalse);
+      expect(d1.compareTo(d2), isNonZero);
+      expect(d2.compareTo(d1), -d1.compareTo(d2));
+    });
+
     test('equality', () {
       final d1 = HoraDuration(days: 5);
       final d2 = HoraDuration(days: 5);
       final d3 = HoraDuration(days: 6);
       expect(d1 == d2, isTrue);
       expect(d1 == d3, isFalse);
+    });
+
+    test('negative zero compares and hashes as zero', () {
+      final negZero = const HoraDuration(isNegative: true);
+      final zero = HoraDuration.zero;
+      expect(negZero.isZero, isTrue);
+      expect(negZero.compareTo(zero), 0);
+      expect(zero.compareTo(negZero), 0);
+      expect(negZero, zero);
+      expect(negZero.hashCode, zero.hashCode);
+      expect(negZero.toIso8601(), 'PT0S');
     });
   });
 

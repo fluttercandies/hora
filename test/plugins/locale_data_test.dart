@@ -61,12 +61,28 @@ void main() {
       expect(() => data.monthName(13), throwsArgumentError);
     });
 
+    test('monthNameShort validates range', () {
+      final data = Hora.now().localeData;
+      expect(data.monthNameShort(1), 'Jan');
+      expect(data.monthNameShort(12), 'Dec');
+      expect(() => data.monthNameShort(0), throwsArgumentError);
+      expect(() => data.monthNameShort(13), throwsArgumentError);
+    });
+
     test('weekdayName validates range', () {
       final data = Hora.now().localeData;
       expect(data.weekdayName(0), 'Sunday');
       expect(data.weekdayName(6), 'Saturday');
       expect(() => data.weekdayName(-1), throwsArgumentError);
       expect(() => data.weekdayName(7), throwsArgumentError);
+    });
+
+    test('weekdayNameShort validates range', () {
+      final data = Hora.now().localeData;
+      expect(data.weekdayNameShort(0), 'Sun');
+      expect(data.weekdayNameShort(6), 'Sat');
+      expect(() => data.weekdayNameShort(-1), throwsArgumentError);
+      expect(() => data.weekdayNameShort(7), throwsArgumentError);
     });
   });
 

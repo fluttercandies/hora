@@ -67,6 +67,21 @@ void main() {
         final result = HoraMinMax.minMax([h1, h3]);
         expect(result.span.inDays, 365); // 2024 is leap year
       });
+
+      test('minMaxOrNull returns null for empty and result for non-empty', () {
+        expect(HoraMinMax.minMaxOrNull([]), isNull);
+        final result = HoraMinMax.minMaxOrNull([h2, h1, h3]);
+        expect(result, isNotNull);
+        expect(result!.min, equals(h1));
+        expect(result.max, equals(h3));
+      });
+
+      test('MinMaxResult constructor initializes fields and span', () {
+        final result = MinMaxResult(min: h1, max: h3);
+        expect(result.min, equals(h1));
+        expect(result.max, equals(h3));
+        expect(result.span.inDays, 365);
+      });
     });
 
     group('clamp', () {
@@ -190,6 +205,14 @@ void main() {
       expect(grouped.containsKey('2024-01'), isTrue);
       expect(grouped.containsKey('2024-06'), isTrue);
       expect(grouped.containsKey('2024-12'), isTrue);
+    });
+
+    test('groupByDay', () {
+      final sameDay = Hora.of(year: 2024, month: 6, day: 15, hour: 12);
+      final grouped = [dates[0], sameDay, dates[1]].groupByDay();
+      expect(grouped.keys.length, 2);
+      expect(grouped['2024-06-15']?.length, 2);
+      expect(grouped['2024-01-01']?.length, 1);
     });
 
     test('groupByYear', () {

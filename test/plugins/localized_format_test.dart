@@ -235,6 +235,12 @@ void main() {
         expect(result, contains('/'));
         expect(result, contains(' - '));
       });
+
+      test('does not expand localized tokens inside escaped literals', () {
+        final h = Hora.of(year: 2023, month: 12, day: 25, hour: 14, minute: 30);
+        final result = h.localizedFormat('[L] LT');
+        expect(result, equals('L 2:30 PM'));
+      });
     });
   });
 }

@@ -91,13 +91,23 @@ void main() {
         expect(h.day, equals(15));
       });
 
-      test('handles num values', () {
+      test('handles integer-compatible num values', () {
         final h = HoraObject.from({
           'year': 2023.0,
-          'month': 6.5, // Should truncate to 6
+          'month': 6.0,
         });
         expect(h.year, equals(2023));
         expect(h.month, equals(6));
+      });
+
+      test('rejects non-integer numeric values', () {
+        expect(
+          () => HoraObject.from({
+            'year': 2023,
+            'month': 6.5,
+          }),
+          throwsArgumentError,
+        );
       });
     });
 
@@ -114,6 +124,16 @@ void main() {
         final h = HoraObject.tryFrom({'year': 2023});
         expect(h, isNotNull);
         expect(h!.year, equals(2023));
+      });
+
+      test('returns null for invalid map values', () {
+        expect(
+          HoraObject.tryFrom({
+            'year': 2023,
+            'month': 6.5,
+          }),
+          isNull,
+        );
       });
     });
 
@@ -178,10 +198,48 @@ void main() {
         expect(h2.month, equals(7));
       });
 
+      test('parses string values and canonical keys', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        final h2 = h.addObject({
+          'DAYS': '5',
+          'hours_': '2',
+        });
+        expect(h2.day, equals(20));
+        expect(h2.hour, equals(2));
+      });
+
       test('handles zero values', () {
         final h = Hora.of(year: 2023, month: 6, day: 15);
         final h2 = h.addObject({'days': 0, 'hours': 0});
         expect(h2, equals(h));
+      });
+
+      test('rejects non-integer numeric values', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(
+          () => h.addObject({'days': 1.5}),
+          throwsArgumentError,
+        );
+      });
+
+      test('rejects conflicting alias values', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(
+          () => h.addObject({'day': 1, 'days': 2}),
+          throwsArgumentError,
+        );
+      });
+
+      test('rejects unsupported keys', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(
+          () => h.addObject({'dayz': 2}),
+          throwsArgumentError,
+        );
+        expect(
+          () => h.addObject({'days': 1, 'month-value': 2}),
+          throwsArgumentError,
+        );
       });
     });
 
@@ -206,6 +264,24 @@ void main() {
         });
         expect(h2.day, equals(10));
         expect(h2.hour, equals(5));
+      });
+
+      test('subtracts string numeric values', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15, hour: 10);
+        final h2 = h.subtractObject({
+          'days': '5',
+          'hours': '2',
+        });
+        expect(h2.day, equals(10));
+        expect(h2.hour, equals(8));
+      });
+
+      test('rejects unsupported keys', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(
+          () => h.subtractObject({'wek': 1}),
+          throwsArgumentError,
+        );
       });
     });
 
@@ -239,6 +315,38 @@ void main() {
         expect(h2.day, equals(15));
         expect(h2.hour, equals(10));
         expect(h2.minute, equals(30));
+      });
+
+      test('rejects non-integer numeric values', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(
+          () => h.setObject({'month': 6.5}),
+          throwsArgumentError,
+        );
+      });
+
+      test('rejects unsupported keys', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(
+          () => h.setObject({'weeks': 1}),
+          throwsArgumentError,
+        );
+        expect(
+          () => h.setObject({'year': 2024, 'month__value': 8}),
+          throwsArgumentError,
+        );
+      });
+
+      test('rejects out-of-range values', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(
+          () => h.setObject({'month': 13}),
+          throwsArgumentError,
+        );
+        expect(
+          () => h.setObject({'day': 0}),
+          throwsArgumentError,
+        );
       });
     });
 
@@ -289,15 +397,44 @@ void main() {
         expect(h.getByKey('dayofyear'), equals(166));
       });
 
-      test('returns null for unknown key', () {
+      test('throws for unknown key', () {
         final h = Hora.of(year: 2023, month: 6, day: 15);
-        expect(h.getByKey('unknown'), isNull);
+        expect(() => h.getByKey('unknown'), throwsArgumentError);
       });
 
       test('is case-insensitive', () {
         final h = Hora.of(year: 2023, month: 6, day: 15);
         expect(h.getByKey('YEAR'), equals(2023));
         expect(h.getByKey('Year'), equals(2023));
+      });
+    });
+
+    group('getByField', () {
+      test('returns values by type-safe field enum', () {
+        final h = Hora.of(
+          year: 2023,
+          month: 6,
+          day: 15,
+          hour: 10,
+          minute: 30,
+          second: 45,
+          millisecond: 123,
+          microsecond: 456,
+        );
+
+        expect(h.getByField(HoraGetField.year), equals(2023));
+        expect(h.getByField(HoraGetField.month), equals(6));
+        expect(h.getByField(HoraGetField.day), equals(15));
+        expect(h.getByField(HoraGetField.hour), equals(10));
+        expect(h.getByField(HoraGetField.minute), equals(30));
+        expect(h.getByField(HoraGetField.second), equals(45));
+        expect(h.getByField(HoraGetField.millisecond), equals(123));
+        expect(h.getByField(HoraGetField.microsecond), equals(456));
+        expect(h.getByField(HoraGetField.weekday), equals(4));
+        expect(h.getByField(HoraGetField.quarter), equals(2));
+        expect(h.getByField(HoraGetField.dayOfYear), equals(166));
+        expect(h.getByField(HoraGetField.isoWeek), equals(h.isoWeek));
+        expect(h.getByField(HoraGetField.isoWeekYear), equals(h.isoWeekYear));
       });
     });
 
@@ -314,16 +451,67 @@ void main() {
         expect(h2.month, equals(12));
       });
 
-      test('returns same instance for unknown key', () {
+      test('throws for unknown key', () {
         final h = Hora.of(year: 2023, month: 6, day: 15);
-        final h2 = h.setByKey('unknown', 100);
-        expect(h2, equals(h));
+        expect(() => h.setByKey('unknown', 100), throwsArgumentError);
       });
 
       test('is case-insensitive', () {
         final h = Hora.of(year: 2020, month: 6, day: 15);
         final h2 = h.setByKey('YEAR', 2023);
         expect(h2.year, equals(2023));
+      });
+
+      test('rejects out-of-range values', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(() => h.setByKey('month', 13), throwsArgumentError);
+        expect(() => h.setByKey('day', 0), throwsArgumentError);
+      });
+    });
+
+    group('setByField', () {
+      test('sets component by type-safe field enum', () {
+        final h = Hora.of(
+          year: 2023,
+          month: 6,
+          day: 15,
+          hour: 10,
+          minute: 30,
+          second: 45,
+          millisecond: 123,
+          microsecond: 456,
+        );
+
+        final updated = h
+            .setByField(HoraSetField.year, 2025)
+            .setByField(HoraSetField.month, 8)
+            .setByField(HoraSetField.day, 20)
+            .setByField(HoraSetField.hour, 9)
+            .setByField(HoraSetField.minute, 15)
+            .setByField(HoraSetField.second, 5)
+            .setByField(HoraSetField.millisecond, 10)
+            .setByField(HoraSetField.microsecond, 20);
+
+        expect(updated.year, equals(2025));
+        expect(updated.month, equals(8));
+        expect(updated.day, equals(20));
+        expect(updated.hour, equals(9));
+        expect(updated.minute, equals(15));
+        expect(updated.second, equals(5));
+        expect(updated.millisecond, equals(10));
+        expect(updated.microsecond, equals(20));
+      });
+
+      test('rejects out-of-range values', () {
+        final h = Hora.of(year: 2023, month: 6, day: 15);
+        expect(
+          () => h.setByField(HoraSetField.hour, 24),
+          throwsArgumentError,
+        );
+        expect(
+          () => h.setByField(HoraSetField.second, 60),
+          throwsArgumentError,
+        );
       });
     });
   });

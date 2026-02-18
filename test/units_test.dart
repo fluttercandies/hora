@@ -96,4 +96,29 @@ void main() {
       expect(TemporalUnit.values.last, TemporalUnit.year);
     });
   });
+
+  group('HoraInclusivity', () {
+    test('tryParse supports all canonical interval tokens', () {
+      expect(HoraInclusivity.tryParse('()'), HoraInclusivity.exclusive);
+      expect(HoraInclusivity.tryParse('[]'), HoraInclusivity.inclusive);
+      expect(HoraInclusivity.tryParse('[)'), HoraInclusivity.includeStart);
+      expect(HoraInclusivity.tryParse('(]'), HoraInclusivity.includeEnd);
+    });
+
+    test('tryParse returns null for invalid token', () {
+      expect(HoraInclusivity.tryParse('invalid'), isNull);
+      expect(HoraInclusivity.tryParse(']['), isNull);
+    });
+
+    test('parse throws for invalid token', () {
+      expect(() => HoraInclusivity.parse('invalid'), throwsFormatException);
+    });
+
+    test('token exposes canonical representation', () {
+      expect(HoraInclusivity.exclusive.token, '()');
+      expect(HoraInclusivity.inclusive.token, '[]');
+      expect(HoraInclusivity.includeStart.token, '[)');
+      expect(HoraInclusivity.includeEnd.token, '(]');
+    });
+  });
 }

@@ -1,3 +1,4 @@
+import 'package:hora/hora.dart';
 import 'package:hora/src/plugins/custom_parse_format.dart';
 import 'package:test/test.dart';
 
@@ -53,6 +54,21 @@ void main() {
       test('returns invalid Hora for invalid input in strict mode', () {
         final h = HoraParser.parse('invalid', 'YYYY-MM-DD', strict: true);
         expect(h.isValid, isFalse);
+      });
+
+      test('strict mode requires complete token coverage', () {
+        expect(
+          HoraParser.tryParse('2024', 'YYYY-MM-DD', strict: true),
+          isNull,
+        );
+        expect(
+          HoraParser.tryParse('2024-03', 'YYYY-MM-DD', strict: true),
+          isNull,
+        );
+        expect(
+          HoraParser.tryParse('2024-03-15', 'YYYY-MM-DD', strict: true),
+          isNotNull,
+        );
       });
     });
 
@@ -143,15 +159,32 @@ void main() {
     });
   });
 
-  group('HoraCustomParseExt', () {
-    test('parseFormat static method', () {
-      final h = HoraCustomParseExt.parseFormat('2024-03-15', 'YYYY-MM-DD');
+  group('Top-level parse functions', () {
+    test('horaParseFormat', () {
+      final h = horaParseFormat('2024-03-15', 'YYYY-MM-DD');
       expect(h.year, 2024);
     });
 
-    test('tryParseFormat static method', () {
-      final h = HoraCustomParseExt.tryParseFormat('2024-03-15', 'YYYY-MM-DD');
+    test('horaTryParseFormat', () {
+      final h = horaTryParseFormat('2024-03-15', 'YYYY-MM-DD');
       expect(h, isNotNull);
+    });
+  });
+
+  group('ParseResult', () {
+    test('success constructor stores parsed Hora', () {
+      final h = Hora.of(year: 2024, month: 3, day: 15);
+      final result = ParseResult.success(h);
+      expect(result.success, isTrue);
+      expect(result.hora, equals(h));
+      expect(result.error, isNull);
+    });
+
+    test('failure constructor stores error message', () {
+      const result = ParseResult.failure('invalid');
+      expect(result.success, isFalse);
+      expect(result.hora, isNull);
+      expect(result.error, 'invalid');
     });
   });
 }

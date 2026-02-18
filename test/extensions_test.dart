@@ -32,6 +32,11 @@ void main() {
       expect(h.unixMillis, 1703462400000);
     });
 
+    test('asUnix() supports precision option', () {
+      final h = 1703462400.asUnix(unit: UnixTimestampUnit.seconds);
+      expect(h.toUtc().day, 25);
+    });
+
     test('duration extensions', () {
       expect(5.days.days, 5);
       expect(3.hours.hours, 3);
@@ -55,6 +60,14 @@ void main() {
       expect('invalid'.tryToHora(), isNull);
     });
 
+    test('toHora() supports parse mode', () {
+      expect('2023/12/25'.toHora().isValid, isTrue);
+      expect(
+        '2023/12/25'.toHora(mode: HoraParseMode.strict).isValid,
+        isFalse,
+      );
+    });
+
     test('toHoraDuration() parses ISO 8601', () {
       final d = 'P1Y2M3D'.toHoraDuration();
       expect(d.years, 1);
@@ -73,6 +86,24 @@ void main() {
       final hd = d.toHoraDuration();
       expect(hd.inHours, 126);
       expect(hd.inMinutes, 7590);
+    });
+  });
+
+  group('MapToHora Extension', () {
+    test('toHora() creates Hora from map', () {
+      final h = {
+        'year': 2024,
+        'month': 6,
+        'day': 15,
+      }.toHora();
+      expect(h.year, 2024);
+      expect(h.month, 6);
+      expect(h.day, 15);
+    });
+
+    test('tryToHora() returns null on invalid map date string', () {
+      final h = <String, Object?>{'date': 'not-a-date'}.tryToHora();
+      expect(h, isNull);
     });
   });
 
@@ -98,6 +129,12 @@ void main() {
       final h1 = Hora.of(year: 2023, month: 6, day: 15);
       final h2 = Hora.of(year: 2023, month: 6, day: 20);
       expect(h2.from(h1), contains('5 days'));
+    });
+
+    test('to() another Hora', () {
+      final h1 = Hora.of(year: 2023, month: 6, day: 15);
+      final h2 = Hora.of(year: 2023, month: 6, day: 20);
+      expect(h1.to(h2), contains('5 days'));
     });
   });
 
@@ -191,6 +228,24 @@ void main() {
       expect(range.last.day, 10);
     });
 
+    test('rangeTo() validates input and step', () {
+      final valid = Hora.of(year: 2023, month: 6, day: 10);
+      final invalid = Hora.parse('invalid');
+
+      expect(
+        () => valid.rangeTo(valid, step: 0).toList(),
+        throwsArgumentError,
+      );
+      expect(
+        () => invalid.rangeTo(valid).toList(),
+        throwsArgumentError,
+      );
+      expect(
+        () => valid.rangeTo(invalid).toList(),
+        throwsArgumentError,
+      );
+    });
+
     test('take() generates n dates', () {
       final start = Hora.of(year: 2023, month: 6, day: 10);
       final dates = start.take(5).toList();
@@ -203,6 +258,16 @@ void main() {
       final dates = start.take(3, unit: TemporalUnit.month).toList();
       expect(dates.map((h) => h.month), [1, 2, 3]);
     });
+
+    test('take() validates count, step, and start instance', () {
+      final valid = Hora.of(year: 2023);
+      final invalid = Hora.parse('invalid');
+
+      expect(() => valid.take(-1).toList(), throwsArgumentError);
+      expect(() => valid.take(3, step: 0).toList(), throwsArgumentError);
+      expect(() => invalid.take(1).toList(), throwsArgumentError);
+      expect(valid.take(0), isEmpty);
+    });
   });
 
   group('HoraBuilderExt', () {
@@ -214,6 +279,15 @@ void main() {
       expect(h.setHour(10).hour, 10);
       expect(h.setMinute(30).minute, 30);
       expect(h.setSecond(45).second, 45);
+      expect(h.setMillisecond(123).millisecond, 123);
+      expect(h.setMicrosecond(456).microsecond, 456);
+    });
+
+    test('setters validate ranges', () {
+      final h = Hora.of(year: 2023, month: 6, day: 15);
+      expect(() => h.setMonth(13), throwsArgumentError);
+      expect(() => h.setDay(0), throwsArgumentError);
+      expect(() => h.setHour(24), throwsArgumentError);
     });
 
     test('navigation shortcuts', () {
