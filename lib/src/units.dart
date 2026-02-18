@@ -117,6 +117,42 @@ sealed class TemporalUnit {
   }
 }
 
+/// Inclusivity flags for interval boundary checks.
+///
+/// These map to common interval notations:
+/// - `exclusive` => `()`
+/// - `inclusive` => `[]`
+/// - `includeStart` => `[)`
+/// - `includeEnd` => `(]`
+enum HoraInclusivity {
+  exclusive('()'),
+  inclusive('[]'),
+  includeStart('[)'),
+  includeEnd('(]');
+
+  const HoraInclusivity(this.token);
+
+  /// Canonical interval token representation.
+  final String token;
+
+  /// Parses an inclusivity token.
+  static HoraInclusivity parse(String input) =>
+      tryParse(input) ??
+      (throw FormatException(
+        'Unknown inclusivity token: $input. '
+        'Expected one of: (), [], [), (]',
+      ));
+
+  /// Tries to parse an inclusivity token.
+  static HoraInclusivity? tryParse(String input) => switch (input) {
+        '()' => HoraInclusivity.exclusive,
+        '[]' => HoraInclusivity.inclusive,
+        '[)' => HoraInclusivity.includeStart,
+        '(]' => HoraInclusivity.includeEnd,
+        _ => null,
+      };
+}
+
 /// A time unit with fixed duration.
 enum _FixedUnit implements TemporalUnit {
   microsecond(Duration(microseconds: 1), 'microsecond', 'μs'),

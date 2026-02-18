@@ -104,7 +104,8 @@ class HoraDuration implements Comparable<HoraDuration> {
 
     if (days < 0) {
       months--;
-      days += early.daysInMonth;
+      // Use the number of days in the month before late's month
+      days += DateTime(late.year, late.month, 0).day;
     }
     if (months < 0) {
       years--;
@@ -175,6 +176,9 @@ class HoraDuration implements Comparable<HoraDuration> {
 
     final match = regex.firstMatch(input.trim());
     if (match == null) return null;
+    final hasAnyComponent = List<int>.generate(7, (i) => i + 2)
+        .any((index) => match.group(index) != null);
+    if (!hasAnyComponent) return null;
 
     final isNeg = match.group(1) == '-';
     int parseNum(String? s) => s == null ? 0 : int.tryParse(s) ?? 0;
@@ -189,19 +193,34 @@ class HoraDuration implements Comparable<HoraDuration> {
       return (sec, ms, us);
     }
 
+    final year = parseNum(match.group(2));
+    final month = parseNum(match.group(3));
+    final week = parseNum(match.group(4));
+    final day = parseNum(match.group(5));
+    final hour = parseNum(match.group(6));
+    final minute = parseNum(match.group(7));
     final (sec, ms, us) = parseSeconds(match.group(8));
+    final hasMagnitude = year > 0 ||
+        month > 0 ||
+        week > 0 ||
+        day > 0 ||
+        hour > 0 ||
+        minute > 0 ||
+        sec > 0 ||
+        ms > 0 ||
+        us > 0;
 
     return HoraDuration(
-      years: parseNum(match.group(2)),
-      months: parseNum(match.group(3)),
-      weeks: parseNum(match.group(4)),
-      days: parseNum(match.group(5)),
-      hours: parseNum(match.group(6)),
-      minutes: parseNum(match.group(7)),
+      years: year,
+      months: month,
+      weeks: week,
+      days: day,
+      hours: hour,
+      minutes: minute,
       seconds: sec,
       milliseconds: ms,
       microseconds: us,
-      isNegative: isNeg,
+      isNegative: isNeg && hasMagnitude,
     );
   }
 
@@ -227,6 +246,8 @@ class HoraDuration implements Comparable<HoraDuration> {
       seconds == 0 &&
       milliseconds == 0 &&
       microseconds == 0;
+
+  bool get _isSignedNegative => isNegative && !isZero;
 
   /// Whether this duration contains calendar units (years/months).
   bool get hasCalendarUnits => years != 0 || months != 0;
@@ -275,7 +296,7 @@ class HoraDuration implements Comparable<HoraDuration> {
   ///
   /// Note: Years and months are converted using average values.
   Duration asDuration() {
-    final sign = isNegative ? -1 : 1;
+    final sign = _isSignedNegative ? -1 : 1;
     final totalMicros =
         (asApproximateSeconds * 1000000 + milliseconds * 1000 + microseconds) *
             sign;
@@ -323,6 +344,20 @@ class HoraDuration implements Comparable<HoraDuration> {
 
   // ============ Arithmetic ============
 
+  /// Returns the negation of this duration.
+  HoraDuration operator -() => HoraDuration(
+        years: years,
+        months: months,
+        weeks: weeks,
+        days: days,
+        hours: hours,
+        minutes: minutes,
+        seconds: seconds,
+        milliseconds: milliseconds,
+        microseconds: microseconds,
+        isNegative: !isNegative,
+      );
+
   /// Adds another duration.
   ///
   /// Note: This does not normalize the result. Call [normalize] if needed.
@@ -347,34 +382,79 @@ class HoraDuration implements Comparable<HoraDuration> {
 
   /// Subtracts another duration.
   ///
-  /// Note: This does not normalize the result. Call [normalize] if needed.
+  /// Converts both durations to total microseconds (with approximate
+  /// month/year conversions), computes the difference, then reconstructs
+  /// the result preserving calendar unit proportions.
   HoraDuration operator -(HoraDuration other) {
     if (other.isNegative) {
       return this + other.abs();
     }
 
-    final thisUs = inMicroseconds + inMonths * 30.4375 * 24 * 60 * 60 * 1000000;
-    final otherUs = other.inMicroseconds +
-        other.inMonths * 30.4375 * 24 * 60 * 60 * 1000000;
+    // Convert to total microseconds for a correct scalar subtraction.
+    final sign = isNegative ? -1 : 1;
+    final otherSign = other.isNegative ? -1 : 1;
 
-    final isResultNeg = isNegative ? thisUs + otherUs > 0 : thisUs < otherUs;
+    const monthUs = 2629800000000; // round(30.4375 days in microseconds)
+    final thisTotalUs = sign * (inMicroseconds + (inMonths * monthUs));
+    final otherTotalUs =
+        otherSign * (other.inMicroseconds + (other.inMonths * monthUs));
+    final diffUs = thisTotalUs - otherTotalUs;
+
+    final isResultNeg = diffUs < 0;
+
+    // Reconstruct from absolute scalar microseconds so every component stays non-negative.
+    // Months remain approximate (30.4375 days), consistent with subtraction semantics.
+    final absUs = diffUs.abs();
+    final moAbs = absUs ~/ monthUs;
+    final remainUs = absUs - (moAbs * monthUs);
+
+    final y = moAbs ~/ 12;
+    final mo = moAbs % 12;
+
+    var us = remainUs;
+    // Only decompose into weeks if either operand originally had weeks.
+    final hasWeeks = weeks > 0 || other.weeks > 0;
+    int w;
+    if (hasWeeks) {
+      w = us ~/ (7 * 86400000000);
+      us -= w * 7 * 86400000000;
+    } else {
+      w = 0;
+    }
+    final d = us ~/ 86400000000;
+    us -= d * 86400000000;
+    final h = us ~/ 3600000000;
+    us -= h * 3600000000;
+    final m = us ~/ 60000000;
+    us -= m * 60000000;
+    final s = us ~/ 1000000;
+    us -= s * 1000000;
+    final ms = us ~/ 1000;
+    us -= ms * 1000;
 
     return HoraDuration(
-      years: (years - other.years).abs(),
-      months: (months - other.months).abs(),
-      weeks: (weeks - other.weeks).abs(),
-      days: (days - other.days).abs(),
-      hours: (hours - other.hours).abs(),
-      minutes: (minutes - other.minutes).abs(),
-      seconds: (seconds - other.seconds).abs(),
-      milliseconds: (milliseconds - other.milliseconds).abs(),
-      microseconds: (microseconds - other.microseconds).abs(),
-      isNegative: isResultNeg,
+      years: y,
+      months: mo,
+      weeks: w,
+      days: d,
+      hours: h,
+      minutes: m,
+      seconds: s,
+      milliseconds: ms,
+      microseconds: us,
+      isNegative: isResultNeg && absUs != 0,
     );
   }
 
   /// Multiplies the duration by a factor.
   HoraDuration operator *(num factor) {
+    if (factor.isNaN || factor.isInfinite) {
+      throw ArgumentError.value(
+        factor,
+        'factor',
+        'Factor must be a finite number.',
+      );
+    }
     final f = factor.abs();
     return HoraDuration(
       years: (years * f).round(),
@@ -386,7 +466,7 @@ class HoraDuration implements Comparable<HoraDuration> {
       seconds: (seconds * f).round(),
       milliseconds: (milliseconds * f).round(),
       microseconds: (microseconds * f).round(),
-      isNegative: factor < 0 ? !isNegative : isNegative,
+      isNegative: factor < 0 ? !_isSignedNegative : _isSignedNegative,
     ).normalize();
   }
 
@@ -395,7 +475,7 @@ class HoraDuration implements Comparable<HoraDuration> {
   /// Returns the ISO 8601 duration string.
   String toIso8601() {
     final buf = StringBuffer();
-    if (isNegative) buf.write('-');
+    if (_isSignedNegative) buf.write('-');
     buf.write('P');
 
     if (years != 0) buf.write('${years}Y');
@@ -425,7 +505,7 @@ class HoraDuration implements Comparable<HoraDuration> {
       }
     }
 
-    if (buf.length == 1 || (buf.length == 2 && isNegative)) {
+    if (buf.length == 1 || (buf.length == 2 && _isSignedNegative)) {
       buf.write('T0S');
     }
 
@@ -486,11 +566,49 @@ class HoraDuration implements Comparable<HoraDuration> {
 
   @override
   int compareTo(HoraDuration other) {
-    // Compare using approximate microseconds
-    final thisUs = (isNegative ? -1 : 1) * asApproximateSeconds * 1000000;
-    final otherUs =
-        (other.isNegative ? -1 : 1) * other.asApproximateSeconds * 1000000;
-    return thisUs.compareTo(otherUs);
+    // First compare by approximate scalar magnitude including sub-second parts.
+    final scalarCmp = asDuration().inMicroseconds.compareTo(
+          other.asDuration().inMicroseconds,
+        );
+    if (scalarCmp != 0) return scalarCmp;
+
+    // Tie-break to provide deterministic ordering and avoid compareTo(==0)
+    // for durations that are structurally different but numerically close
+    // under approximation.
+    return _componentTupleCompare(other);
+  }
+
+  int _componentTupleCompare(HoraDuration other) {
+    final fieldsThis = <int>[
+      if (_isSignedNegative) 1 else 0,
+      years,
+      months,
+      weeks,
+      days,
+      hours,
+      minutes,
+      seconds,
+      milliseconds,
+      microseconds,
+    ];
+    final fieldsOther = <int>[
+      if (other._isSignedNegative) 1 else 0,
+      other.years,
+      other.months,
+      other.weeks,
+      other.days,
+      other.hours,
+      other.minutes,
+      other.seconds,
+      other.milliseconds,
+      other.microseconds,
+    ];
+
+    for (var i = 0; i < fieldsThis.length; i++) {
+      final cmp = fieldsThis[i].compareTo(fieldsOther[i]);
+      if (cmp != 0) return cmp;
+    }
+    return 0;
   }
 
   @override
@@ -506,7 +624,7 @@ class HoraDuration implements Comparable<HoraDuration> {
           seconds == other.seconds &&
           milliseconds == other.milliseconds &&
           microseconds == other.microseconds &&
-          isNegative == other.isNegative;
+          _isSignedNegative == other._isSignedNegative;
 
   @override
   int get hashCode => Object.hash(
@@ -519,7 +637,7 @@ class HoraDuration implements Comparable<HoraDuration> {
         seconds,
         milliseconds,
         microseconds,
-        isNegative,
+        _isSignedNegative,
       );
 
   @override

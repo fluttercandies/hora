@@ -20,6 +20,10 @@ extension IntToHora on int {
   /// Creates a [Hora] from this Unix timestamp in microseconds.
   Hora get asUnixMicros => Hora.unixMicros(this);
 
+  /// Creates a [Hora] from this Unix timestamp using explicit precision.
+  Hora asUnix({UnixTimestampUnit unit = UnixTimestampUnit.auto}) =>
+      Hora.from(this, timestampUnit: unit);
+
   /// Creates a duration of this many microseconds.
   HoraDuration get microseconds => HoraDuration.ofMicroseconds(this);
 
@@ -51,16 +55,57 @@ extension IntToHora on int {
 /// Extensions on [String] for parsing dates.
 extension StringToHora on String {
   /// Parses this string as a [Hora].
-  Hora toHora({HoraLocale? locale}) => Hora.parse(this, locale: locale);
+  Hora toHora({
+    HoraLocale? locale,
+    HoraParseMode mode = HoraParseMode.smart,
+  }) =>
+      Hora.parse(this, locale: locale, mode: mode);
 
   /// Tries to parse this string as a [Hora], returns null if invalid.
-  Hora? tryToHora({HoraLocale? locale}) => Hora.tryParse(this, locale: locale);
+  Hora? tryToHora({
+    HoraLocale? locale,
+    HoraParseMode mode = HoraParseMode.smart,
+  }) =>
+      Hora.tryParse(this, locale: locale, mode: mode);
 
   /// Parses this string as an ISO 8601 duration.
   HoraDuration toHoraDuration() => HoraDuration.parse(this);
 
   /// Tries to parse this string as a duration, returns null if invalid.
   HoraDuration? tryToHoraDuration() => HoraDuration.tryParse(this);
+}
+
+/// Extensions on map input for direct [Hora] creation.
+extension MapToHora on Map<String, Object?> {
+  /// Creates a [Hora] from this map.
+  Hora toHora({
+    HoraLocale? locale,
+    bool utc = false,
+    HoraParseMode parseMode = HoraParseMode.smart,
+    UnixTimestampUnit timestampUnit = UnixTimestampUnit.auto,
+  }) =>
+      Hora.fromMap(
+        this,
+        locale: locale,
+        utc: utc,
+        parseMode: parseMode,
+        timestampUnit: timestampUnit,
+      );
+
+  /// Tries to create a [Hora] from this map, returns null on failure.
+  Hora? tryToHora({
+    HoraLocale? locale,
+    bool utc = false,
+    HoraParseMode parseMode = HoraParseMode.smart,
+    UnixTimestampUnit timestampUnit = UnixTimestampUnit.auto,
+  }) =>
+      Hora.tryFrom(
+        this,
+        locale: locale,
+        utc: utc,
+        parseMode: parseMode,
+        timestampUnit: timestampUnit,
+      );
 }
 
 /// Extensions on [Duration] for [HoraDuration] conversion.
@@ -169,6 +214,20 @@ extension HoraRangeExt on Hora {
     int step = 1,
     TemporalUnit unit = TemporalUnit.day,
   }) sync* {
+    if (!isValid) {
+      throw ArgumentError.value(
+        this,
+        'this',
+        'rangeTo() requires a valid start Hora.',
+      );
+    }
+    if (!end.isValid) {
+      throw ArgumentError.value(
+        end,
+        'end',
+        'rangeTo() requires a valid end Hora.',
+      );
+    }
     if (step <= 0) {
       throw ArgumentError.value(step, 'step', 'Must be positive');
     }
@@ -189,6 +248,20 @@ extension HoraRangeExt on Hora {
     int step = 1,
     TemporalUnit unit = TemporalUnit.day,
   }) sync* {
+    if (!isValid) {
+      throw ArgumentError.value(
+        this,
+        'this',
+        'take() requires a valid start Hora.',
+      );
+    }
+    if (count < 0) {
+      throw ArgumentError.value(count, 'count', 'Must be non-negative');
+    }
+    if (step <= 0) {
+      throw ArgumentError.value(step, 'step', 'Must be positive');
+    }
+
     var current = this;
     for (var i = 0; i < count; i++) {
       yield current;

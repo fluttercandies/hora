@@ -3,6 +3,30 @@ import 'package:meta/meta.dart';
 import 'locale.dart';
 import 'units.dart';
 
+/// Parsing behavior for [Hora.parse] and [Hora.from] string inputs.
+enum HoraParseMode {
+  /// Parse only native ISO 8601 and `DateTime`-supported formats.
+  strict,
+
+  /// Parse ISO first, then fallback to additional common formats.
+  smart,
+}
+
+/// Precision for Unix timestamp inputs in [Hora.from].
+enum UnixTimestampUnit {
+  /// Detect precision from digit length.
+  auto,
+
+  /// Seconds since epoch.
+  seconds,
+
+  /// Milliseconds since epoch.
+  milliseconds,
+
+  /// Microseconds since epoch.
+  microseconds,
+}
+
 /// An immutable, chainable date-time wrapper with rich manipulation APIs.
 ///
 /// [Hora] wraps Dart's [DateTime] and provides:
@@ -112,28 +136,208 @@ class Hora implements Comparable<Hora> {
         locale: locale,
       );
 
+  /// Creates a [Hora] from a Unix timestamp with configurable precision.
+  factory Hora.fromTimestamp(
+    int value, {
+    HoraLocale? locale,
+    bool utc = false,
+    UnixTimestampUnit unit = UnixTimestampUnit.auto,
+  }) {
+    final dt = _dateTimeFromUnixTimestamp(value, unit: unit);
+    final result = Hora.fromDateTime(dt, locale: locale);
+    return utc ? result.toUtc() : result;
+  }
+
+  /// Creates a [Hora] from map-based date-time input.
+  ///
+  /// Common supported fields:
+  /// - Absolute date parts: `year`, `month`, `day` (or plural forms)
+  /// - Time parts: `hour`, `minute`, `second`, `millisecond`, `microsecond`
+  /// - Date string: `date`, `datetime`, `iso`
+  /// - Unix timestamps: `timestamp`, `unix`, `unixMillis`, `unixMicros`
+  /// - UTC flag: `utc`
+  factory Hora.fromMap(
+    Map<String, Object?> source, {
+    HoraLocale? locale,
+    bool utc = false,
+    HoraParseMode parseMode = HoraParseMode.smart,
+    UnixTimestampUnit timestampUnit = UnixTimestampUnit.auto,
+  }) {
+    final normalized = _normalizeMap(source);
+    if (normalized.isEmpty) {
+      throw ArgumentError.value(
+        source,
+        'source',
+        'Map must contain at least one string key.',
+      );
+    }
+    return Hora._fromNormalizedMap(
+      normalized,
+      locale: locale,
+      utc: utc,
+      parseMode: parseMode,
+      timestampUnit: timestampUnit,
+    );
+  }
+
+  /// Creates a [Hora] from mixed input types with a single API.
+  ///
+  /// Supported [source] types:
+  /// - [Hora]
+  /// - [DateTime]
+  /// - [String] (parsed via [Hora.parse])
+  /// - [int]/[num] Unix timestamp
+  /// - `Map<String, Object?>` date components
+  ///
+  /// When [source] is numeric, [timestampUnit] controls its precision.
+  /// With [UnixTimestampUnit.auto], precision is inferred from digit length.
+  factory Hora.from(
+    Object source, {
+    HoraLocale? locale,
+    bool utc = false,
+    UnixTimestampUnit timestampUnit = UnixTimestampUnit.auto,
+    HoraParseMode parseMode = HoraParseMode.smart,
+  }) {
+    if (source is Hora) {
+      if (!source.isValid) {
+        return Hora._invalid(locale ?? source.locale);
+      }
+      final withTimezone = utc ? source.toUtc() : source;
+      return locale != null ? withTimezone.withLocale(locale) : withTimezone;
+    }
+
+    if (source is DateTime) {
+      final dt = utc ? source.toUtc() : source;
+      return Hora.fromDateTime(dt, locale: locale);
+    }
+
+    if (source is String) {
+      final parsed = Hora.parse(source, locale: locale, mode: parseMode);
+      if (!parsed.isValid) return parsed;
+      return utc ? parsed.toUtc() : parsed;
+    }
+
+    if (source is int) {
+      return Hora.fromTimestamp(
+        source,
+        locale: locale,
+        utc: utc,
+        unit: timestampUnit,
+      );
+    }
+
+    if (source is double) {
+      if (source.isNaN || source.isInfinite) {
+        throw ArgumentError.value(
+          source,
+          'source',
+          'Unix timestamp must be a finite integer.',
+        );
+      }
+      if (source % 1 != 0) {
+        throw ArgumentError.value(
+          source,
+          'source',
+          'Unix timestamp must be an integer.',
+        );
+      }
+      return Hora.fromTimestamp(
+        source.toInt(),
+        locale: locale,
+        utc: utc,
+        unit: timestampUnit,
+      );
+    }
+
+    if (source is Map) {
+      final normalized = _normalizeMap(source);
+      if (normalized.isEmpty) {
+        throw ArgumentError.value(
+          source,
+          'source',
+          'Map source must contain at least one string key.',
+        );
+      }
+      return Hora._fromNormalizedMap(
+        normalized,
+        locale: locale,
+        utc: utc,
+        parseMode: parseMode,
+        timestampUnit: timestampUnit,
+      );
+    }
+
+    throw ArgumentError.value(
+      source,
+      'source',
+      'Unsupported input type. Use Hora, DateTime, String, num, or Map.',
+    );
+  }
+
   /// Parses a date-time string.
   ///
   /// Supports ISO 8601 and common formats.
   /// Returns an invalid [Hora] if parsing fails (check with [isValid]).
-  factory Hora.parse(String input, {HoraLocale? locale}) {
-    final dt = DateTime.tryParse(input);
+  factory Hora.parse(
+    String input, {
+    HoraLocale? locale,
+    HoraParseMode mode = HoraParseMode.smart,
+  }) {
+    final normalized = input.trim();
+    if (_hasInvalidIsoLikeComponents(normalized)) {
+      return Hora._invalid(locale ?? Hora.globalLocale);
+    }
+    final dt = DateTime.tryParse(normalized);
     if (dt != null) {
       return Hora.fromDateTime(dt, locale: locale);
     }
-    // Try additional formats
-    final parsed = _tryParseFormats(input);
+
+    if (mode == HoraParseMode.strict) {
+      return Hora._invalid(locale ?? Hora.globalLocale);
+    }
+
+    // Try additional formats in smart mode.
+    final parsed = _tryParseFormats(normalized);
     if (parsed != null) {
       return Hora.fromDateTime(parsed, locale: locale);
     }
-    // Return invalid Hora
     return Hora._invalid(locale ?? Hora.globalLocale);
   }
 
   /// Tries to parse a date-time string, returns null if invalid.
-  static Hora? tryParse(String input, {HoraLocale? locale}) {
-    final result = Hora.parse(input, locale: locale);
+  static Hora? tryParse(
+    String input, {
+    HoraLocale? locale,
+    HoraParseMode mode = HoraParseMode.smart,
+  }) {
+    final result = Hora.parse(input, locale: locale, mode: mode);
     return result.isValid ? result : null;
+  }
+
+  /// Tries to create [Hora] from mixed input types, returns null on failure.
+  static Hora? tryFrom(
+    Object? source, {
+    HoraLocale? locale,
+    bool utc = false,
+    UnixTimestampUnit timestampUnit = UnixTimestampUnit.auto,
+    HoraParseMode parseMode = HoraParseMode.smart,
+  }) {
+    if (source == null) return null;
+    try {
+      final result = Hora.from(
+        source,
+        locale: locale,
+        utc: utc,
+        timestampUnit: timestampUnit,
+        parseMode: parseMode,
+      );
+      return result.isValid ? result : null;
+    } catch (error) {
+      if (error is ArgumentError || error is FormatException) {
+        return null;
+      }
+      rethrow;
+    }
   }
 
   final DateTime? _dateTime;
@@ -223,8 +427,9 @@ class Hora implements Comparable<Hora> {
 
   /// The day of year (1-366).
   int get dayOfYear {
-    final start = DateTime(year);
-    return _dt.difference(start).inDays + 1;
+    final startOfYear = DateTime.utc(year);
+    final currentDate = DateTime.utc(year, month, day);
+    return currentDate.difference(startOfYear).inDays + 1;
   }
 
   /// Number of days in the current month.
@@ -239,9 +444,9 @@ class Hora implements Comparable<Hora> {
 
   /// The ISO week number (1-53).
   int get isoWeek {
-    // ISO week starts on Monday
-    final thursday = _dt.add(Duration(days: 4 - weekday));
-    final firstThursday = DateTime(thursday.year, 1, 4);
+    final currentDate = DateTime.utc(year, month, day);
+    final thursday = currentDate.add(Duration(days: 4 - currentDate.weekday));
+    final firstThursday = DateTime.utc(thursday.year, 1, 4);
     final firstMonday = firstThursday.subtract(
       Duration(days: firstThursday.weekday - 1),
     );
@@ -250,17 +455,18 @@ class Hora implements Comparable<Hora> {
 
   /// The ISO week year.
   int get isoWeekYear {
-    final thursday = _dt.add(Duration(days: 4 - weekday));
+    final currentDate = DateTime.utc(year, month, day);
+    final thursday = currentDate.add(Duration(days: 4 - currentDate.weekday));
     return thursday.year;
   }
 
   /// Number of ISO weeks in the year.
   int get isoWeeksInYear {
-    final dec28 = DateTime(year, 12, 28);
+    final dec28 = DateTime.utc(year, 12, 28);
     final dayOfDec28 = dec28.weekday;
     final lastThursday = dec28.add(Duration(days: 4 - dayOfDec28));
-    final firstThursday = DateTime(year, 1, 4).subtract(
-      Duration(days: DateTime(year, 1, 4).weekday - 4),
+    final firstThursday = DateTime.utc(year, 1, 4).subtract(
+      Duration(days: DateTime.utc(year, 1, 4).weekday - 4),
     );
     return ((lastThursday.difference(firstThursday).inDays) ~/ 7) + 1;
   }
@@ -288,11 +494,136 @@ class Hora implements Comparable<Hora> {
   /// Returns a new [Hora] with the specified amount subtracted.
   Hora subtract(int amount, TemporalUnit unit) => add(-amount, unit);
 
+  /// Adds multiple units in one call.
+  ///
+  /// This is a 2.0-friendly API for reducing chaining and improving
+  /// readability at call sites.
+  Hora plus({
+    int years = 0,
+    int quarters = 0,
+    int months = 0,
+    int weeks = 0,
+    int days = 0,
+    int hours = 0,
+    int minutes = 0,
+    int seconds = 0,
+    int milliseconds = 0,
+    int microseconds = 0,
+  }) =>
+      _applyCompositeDelta(
+        years: years,
+        quarters: quarters,
+        months: months,
+        weeks: weeks,
+        days: days,
+        hours: hours,
+        minutes: minutes,
+        seconds: seconds,
+        milliseconds: milliseconds,
+        microseconds: microseconds,
+      );
+
+  /// Subtracts multiple units in one call.
+  Hora minus({
+    int years = 0,
+    int quarters = 0,
+    int months = 0,
+    int weeks = 0,
+    int days = 0,
+    int hours = 0,
+    int minutes = 0,
+    int seconds = 0,
+    int milliseconds = 0,
+    int microseconds = 0,
+  }) =>
+      _applyCompositeDelta(
+        negate: true,
+        years: years,
+        quarters: quarters,
+        months: months,
+        weeks: weeks,
+        days: days,
+        hours: hours,
+        minutes: minutes,
+        seconds: seconds,
+        milliseconds: milliseconds,
+        microseconds: microseconds,
+      );
+
+  Hora _applyCompositeDelta({
+    bool negate = false,
+    int years = 0,
+    int quarters = 0,
+    int months = 0,
+    int weeks = 0,
+    int days = 0,
+    int hours = 0,
+    int minutes = 0,
+    int seconds = 0,
+    int milliseconds = 0,
+    int microseconds = 0,
+  }) {
+    if (!_isValid) return this;
+
+    final factor = negate ? -1 : 1;
+    var result = this;
+    final deltas = <(int amount, TemporalUnit unit)>[
+      (years * factor, TemporalUnit.year),
+      (quarters * factor, TemporalUnit.quarter),
+      (months * factor, TemporalUnit.month),
+      (weeks * factor, TemporalUnit.week),
+      (days * factor, TemporalUnit.day),
+      (hours * factor, TemporalUnit.hour),
+      (minutes * factor, TemporalUnit.minute),
+      (seconds * factor, TemporalUnit.second),
+      (milliseconds * factor, TemporalUnit.millisecond),
+      (microseconds * factor, TemporalUnit.microsecond),
+    ];
+
+    for (final (amount, unit) in deltas) {
+      if (amount == 0) continue;
+      result = result.add(amount, unit);
+    }
+    return result;
+  }
+
+  /// Alias for [copyWith] with a shorter, intention-revealing name.
+  Hora set({
+    int? year,
+    int? month,
+    int? day,
+    int? hour,
+    int? minute,
+    int? second,
+    int? millisecond,
+    int? microsecond,
+    bool? utc,
+    HoraLocale? locale,
+  }) =>
+      copyWith(
+        year: year,
+        month: month,
+        day: day,
+        hour: hour,
+        minute: minute,
+        second: second,
+        millisecond: millisecond,
+        microsecond: microsecond,
+        utc: utc,
+        locale: locale,
+      );
+
   /// Returns a new [Hora] with a [Duration] added.
-  Hora addDuration(Duration duration) => _addDuration(duration);
+  Hora addDuration(Duration duration) {
+    if (!_isValid) return this;
+    return _addDuration(duration);
+  }
 
   /// Returns a new [Hora] with a [Duration] subtracted.
-  Hora subtractDuration(Duration duration) => _addDuration(-duration);
+  Hora subtractDuration(Duration duration) {
+    if (!_isValid) return this;
+    return _addDuration(-duration);
+  }
 
   Hora _addDuration(Duration duration) =>
       _copyWith(dateTime: _dt.add(duration));
@@ -504,30 +835,44 @@ class Hora implements Comparable<Hora> {
 
   // ============ Comparison ============
 
-  /// Whether this is before [other].
-  bool isBefore(Hora other) => _dt.isBefore(other._dt);
+  bool _canCompareWith(Hora other) => _isValid && other._isValid;
 
-  /// Whether this is after [other].
-  bool isAfter(Hora other) => _dt.isAfter(other._dt);
-
-  /// Whether this is the same as [other] at the given granularity.
-  bool isSame(Hora other, [TemporalUnit unit = TemporalUnit.millisecond]) =>
-      startOf(unit)._dt.isAtSameMomentAs(other.startOf(unit)._dt);
-
-  /// Whether this is the same or before [other].
-  bool isSameOrBefore(Hora other, [TemporalUnit? unit]) {
-    if (unit != null) {
-      return isSame(other, unit) || isBefore(other);
-    }
-    return !isAfter(other);
+  void _requireComparableWith(Hora other, String operation) {
+    if (_canCompareWith(other)) return;
+    throw StateError('Cannot $operation with invalid Hora instances.');
   }
 
-  /// Whether this is the same or after [other].
-  bool isSameOrAfter(Hora other, [TemporalUnit? unit]) {
-    if (unit != null) {
-      return isSame(other, unit) || isAfter(other);
-    }
-    return !isBefore(other);
+  static HoraInclusivity _parseInclusivity(String inclusivity) =>
+      HoraInclusivity.tryParse(inclusivity) ??
+      (throw ArgumentError.value(
+        inclusivity,
+        'inclusivity',
+        'Must be one of "()", "[]", "[)", "(]".',
+      ));
+
+  static (bool includeStart, bool includeEnd) _resolveInclusivity(
+    HoraInclusivity inclusivity,
+  ) =>
+      switch (inclusivity) {
+        HoraInclusivity.exclusive => (false, false),
+        HoraInclusivity.inclusive => (true, true),
+        HoraInclusivity.includeStart => (true, false),
+        HoraInclusivity.includeEnd => (false, true),
+      };
+
+  /// Whether this is between [start] and [end] with typed boundary control.
+  bool isBetweenWith(
+    Hora start,
+    Hora end, {
+    HoraInclusivity inclusivity = HoraInclusivity.exclusive,
+  }) {
+    final (includeStart, includeEnd) = _resolveInclusivity(inclusivity);
+    if (!_isValid || !start._isValid || !end._isValid) return false;
+
+    final afterStart = includeStart ? isSameOrAfter(start) : isAfter(start);
+    final beforeEnd = includeEnd ? isSameOrBefore(end) : isBefore(end);
+
+    return afterStart && beforeEnd;
   }
 
   /// Whether this is between [start] and [end].
@@ -537,24 +882,62 @@ class Hora implements Comparable<Hora> {
   /// - '[]' includes both
   /// - '[)' includes start only
   /// - '(]' includes end only
+  ///
+  /// For type-safe usage, prefer [isBetweenWith] + [HoraInclusivity].
   bool isBetween(Hora start, Hora end, [String inclusivity = '()']) {
-    final includeStart = inclusivity.startsWith('[');
-    final includeEnd = inclusivity.endsWith(']');
+    final parsedInclusivity = _parseInclusivity(inclusivity);
+    return isBetweenWith(start, end, inclusivity: parsedInclusivity);
+  }
 
-    final afterStart = includeStart ? isSameOrAfter(start) : isAfter(start);
-    final beforeEnd = includeEnd ? isSameOrBefore(end) : isBefore(end);
+  /// Whether this is before [other].
+  bool isBefore(Hora other) {
+    if (!_canCompareWith(other)) return false;
+    return _dt.isBefore(other._dt);
+  }
 
-    return afterStart && beforeEnd;
+  /// Whether this is after [other].
+  bool isAfter(Hora other) {
+    if (!_canCompareWith(other)) return false;
+    return _dt.isAfter(other._dt);
+  }
+
+  /// Whether this is the same as [other] at the given granularity.
+  bool isSame(Hora other, [TemporalUnit unit = TemporalUnit.millisecond]) {
+    if (!_canCompareWith(other)) return false;
+    return startOf(unit)._dt.isAtSameMomentAs(other.startOf(unit)._dt);
+  }
+
+  /// Whether this is the same or before [other].
+  bool isSameOrBefore(Hora other, [TemporalUnit? unit]) {
+    if (!_canCompareWith(other)) return false;
+    if (unit != null) {
+      return isSame(other, unit) || isBefore(other);
+    }
+    return !isAfter(other);
+  }
+
+  /// Whether this is the same or after [other].
+  bool isSameOrAfter(Hora other, [TemporalUnit? unit]) {
+    if (!_canCompareWith(other)) return false;
+    if (unit != null) {
+      return isSame(other, unit) || isAfter(other);
+    }
+    return !isBefore(other);
   }
 
   /// The difference between this and [other].
-  Duration difference(Hora other) => _dt.difference(other._dt);
+  Duration difference(Hora other) {
+    _requireComparableWith(other, 'calculate difference');
+    return _dt.difference(other._dt);
+  }
 
   /// The difference in the specified unit.
   ///
   /// If [precise] is true, returns a fractional result.
   num diff(Hora other, TemporalUnit unit, {bool precise = false}) {
-    final diffMs = unixMillis - other.unixMillis;
+    _requireComparableWith(other, 'calculate diff');
+
+    final diffUs = unixMicros - other.unixMicros;
 
     num result;
     switch (unit) {
@@ -565,19 +948,19 @@ class Hora implements Comparable<Hora> {
       case TemporalUnit.month:
         result = _monthDiff(other);
       case TemporalUnit.week:
-        result = diffMs / Duration.millisecondsPerDay / 7;
+        result = diffUs / Duration.microsecondsPerDay / 7;
       case TemporalUnit.day:
-        result = diffMs / Duration.millisecondsPerDay;
+        result = diffUs / Duration.microsecondsPerDay;
       case TemporalUnit.hour:
-        result = diffMs / Duration.millisecondsPerHour;
+        result = diffUs / Duration.microsecondsPerHour;
       case TemporalUnit.minute:
-        result = diffMs / Duration.millisecondsPerMinute;
+        result = diffUs / Duration.microsecondsPerMinute;
       case TemporalUnit.second:
-        result = diffMs / Duration.millisecondsPerSecond;
+        result = diffUs / Duration.microsecondsPerSecond;
       case TemporalUnit.millisecond:
-        result = diffMs.toDouble();
+        result = diffUs / Duration.microsecondsPerMillisecond;
       case TemporalUnit.microsecond:
-        result = (unixMicros - other.unixMicros).toDouble();
+        result = diffUs.toDouble();
     }
 
     return precise ? result : result.truncate();
@@ -602,7 +985,10 @@ class Hora implements Comparable<Hora> {
   }
 
   @override
-  int compareTo(Hora other) => _dt.compareTo(other._dt);
+  int compareTo(Hora other) {
+    _requireComparableWith(other, 'compare');
+    return _dt.compareTo(other._dt);
+  }
 
   // ============ Query ============
 
@@ -616,6 +1002,15 @@ class Hora implements Comparable<Hora> {
   /// Whether this is tomorrow.
   bool get isTomorrow =>
       isSame(Hora.now().add(1, TemporalUnit.day), TemporalUnit.day);
+
+  /// Whether this is in the current week.
+  bool get isThisWeek => isSame(Hora.now(), TemporalUnit.week);
+
+  /// Whether this is in the current month.
+  bool get isThisMonth => isSame(Hora.now(), TemporalUnit.month);
+
+  /// Whether this is in the current year.
+  bool get isThisYear => isSame(Hora.now(), TemporalUnit.year);
 
   /// Whether this is in the past.
   bool get isPast => isBefore(Hora.now());
@@ -633,13 +1028,22 @@ class Hora implements Comparable<Hora> {
   // ============ Conversion ============
 
   /// Converts to UTC timezone.
-  Hora toUtc() => _copyWith(dateTime: _dt.toUtc());
+  Hora toUtc() {
+    if (!_isValid) return this;
+    return _copyWith(dateTime: _dt.toUtc());
+  }
 
   /// Converts to local timezone.
-  Hora toLocal() => _copyWith(dateTime: _dt.toLocal());
+  Hora toLocal() {
+    if (!_isValid) return this;
+    return _copyWith(dateTime: _dt.toLocal());
+  }
 
   /// Converts to a different locale.
-  Hora withLocale(HoraLocale locale) => _copyWith(locale: locale);
+  Hora withLocale(HoraLocale locale) {
+    if (!_isValid) return Hora._invalid(locale);
+    return _copyWith(locale: locale);
+  }
 
   /// Creates a copy with optional modifications.
   Hora copyWith({
@@ -654,10 +1058,29 @@ class Hora implements Comparable<Hora> {
     bool? utc,
     HoraLocale? locale,
   }) {
+    if (!_isValid) {
+      return Hora._invalid(locale ?? _locale);
+    }
+
     final y = year ?? this.year;
     final m = month ?? this.month;
+    _requireRange('month', m, 1, 12);
+    _validateTimeParts(
+      hour: hour,
+      minute: minute,
+      second: second,
+      millisecond: millisecond,
+      microsecond: microsecond,
+    );
+
     final maxDay = DateTime(y, m + 1, 0).day;
-    final d = (day ?? this.day).clamp(1, maxDay);
+    final d = switch (day) {
+      final explicitDay? => (() {
+          _requireRange('day', explicitDay, 1, maxDay);
+          return explicitDay;
+        })(),
+      null => this.day.clamp(1, maxDay),
+    };
 
     final isUtcResult = utc ?? isUtc;
     final dt = isUtcResult
@@ -685,8 +1108,12 @@ class Hora implements Comparable<Hora> {
     return Hora._clone(dt, locale ?? _locale, _isValid);
   }
 
-  Hora _copyWith({DateTime? dateTime, HoraLocale? locale}) =>
-      Hora._clone(dateTime ?? _dt, locale ?? _locale, _isValid);
+  Hora _copyWith({DateTime? dateTime, HoraLocale? locale}) {
+    if (!_isValid) {
+      return Hora._invalid(locale ?? _locale);
+    }
+    return Hora._clone(dateTime ?? _dt, locale ?? _locale, _isValid);
+  }
 
   /// Converts to a [DateTime].
   /// Throws [StateError] if this is an invalid Hora instance.
@@ -750,39 +1177,639 @@ class Hora implements Comparable<Hora> {
 
   // ============ Parsing Helpers ============
 
-  static DateTime? _tryParseFormats(String input) {
-    // Common date patterns
-    final patterns = [
-      // YYYY/MM/DD
-      RegExp(r'^(\d{4})/(\d{1,2})/(\d{1,2})$'),
-      // DD/MM/YYYY
-      RegExp(r'^(\d{1,2})/(\d{1,2})/(\d{4})$'),
-      // YYYY.MM.DD
-      RegExp(r'^(\d{4})\.(\d{1,2})\.(\d{1,2})$'),
-    ];
+  static DateTime _dateTimeFromUnixTimestamp(
+    int value, {
+    UnixTimestampUnit unit = UnixTimestampUnit.auto,
+  }) {
+    final resolvedUnit =
+        unit == UnixTimestampUnit.auto ? _detectTimestampUnit(value) : unit;
 
-    for (final pattern in patterns) {
-      final match = pattern.firstMatch(input);
-      if (match != null) {
-        try {
-          if (input.contains('/') && !input.startsWith(RegExp(r'\d{4}'))) {
-            // DD/MM/YYYY format
-            return DateTime(
-              int.parse(match.group(3)!),
-              int.parse(match.group(2)!),
-              int.parse(match.group(1)!),
-            );
-          } else {
-            // YYYY/MM/DD or YYYY.MM.DD format
-            return DateTime(
-              int.parse(match.group(1)!),
-              int.parse(match.group(2)!),
-              int.parse(match.group(3)!),
-            );
-          }
-        } catch (_) {
-          continue;
-        }
+    return switch (resolvedUnit) {
+      UnixTimestampUnit.seconds =>
+        DateTime.fromMillisecondsSinceEpoch(value * 1000),
+      UnixTimestampUnit.milliseconds =>
+        DateTime.fromMillisecondsSinceEpoch(value),
+      UnixTimestampUnit.microseconds =>
+        DateTime.fromMicrosecondsSinceEpoch(value),
+      UnixTimestampUnit.auto =>
+        throw StateError('Unexpected auto unit after resolution'),
+    };
+  }
+
+  static UnixTimestampUnit _detectTimestampUnit(int value) {
+    final abs = value.abs();
+    if (abs < 100000000000) return UnixTimestampUnit.seconds;
+    if (abs < 100000000000000) return UnixTimestampUnit.milliseconds;
+    return UnixTimestampUnit.microseconds;
+  }
+
+  static const List<String> _mapUtcKeys = ['utc', 'isutc'];
+  static const List<String> _mapUnixMicrosKeys = [
+    'unixmicros',
+    'unixus',
+    'timestampus',
+    'timestampmicroseconds',
+  ];
+  static const List<String> _mapUnixMillisKeys = [
+    'unixmillis',
+    'unixms',
+    'timestampms',
+    'timestampmilliseconds',
+  ];
+  static const List<String> _mapUnixSecondsKeys = ['unix', 'timestampseconds'];
+  static const List<String> _mapTimestampKeys = ['timestamp'];
+  static const List<String> _mapDateKeys = ['date', 'datetime', 'iso'];
+  static const List<String> _mapYearKeys = ['year', 'years'];
+  static const List<String> _mapMonthKeys = ['month', 'months'];
+  static const List<String> _mapDayKeys = ['day', 'days'];
+  static const List<String> _mapHourKeys = ['hour', 'hours'];
+  static const List<String> _mapMinuteKeys = ['minute', 'minutes'];
+  static const List<String> _mapSecondKeys = ['second', 'seconds'];
+  static const List<String> _mapMillisecondKeys = [
+    'millisecond',
+    'milliseconds',
+  ];
+  static const List<String> _mapMicrosecondKeys = [
+    'microsecond',
+    'microseconds',
+  ];
+  static const List<String> _mapComponentKeys = [
+    ..._mapYearKeys,
+    ..._mapMonthKeys,
+    ..._mapDayKeys,
+    ..._mapHourKeys,
+    ..._mapMinuteKeys,
+    ..._mapSecondKeys,
+    ..._mapMillisecondKeys,
+    ..._mapMicrosecondKeys,
+  ];
+  static const Set<String> _supportedMapKeys = {
+    ..._mapUtcKeys,
+    ..._mapUnixMicrosKeys,
+    ..._mapUnixMillisKeys,
+    ..._mapUnixSecondsKeys,
+    ..._mapTimestampKeys,
+    ..._mapDateKeys,
+    ..._mapComponentKeys,
+  };
+
+  // ignore: prefer_constructors_over_static_methods
+  static Hora _fromNormalizedMap(
+    Map<String, Object?> normalized, {
+    HoraLocale? locale,
+    bool utc = false,
+    HoraParseMode parseMode = HoraParseMode.smart,
+    UnixTimestampUnit timestampUnit = UnixTimestampUnit.auto,
+  }) {
+    _validateSupportedMapKeys(normalized);
+
+    final shouldUseUtc = utc || (_mapBool(normalized, _mapUtcKeys) ?? false);
+    final unixMicros = _mapInt(normalized, _mapUnixMicrosKeys);
+    final unixMillis = _mapInt(normalized, _mapUnixMillisKeys);
+    final unixSeconds = _mapInt(normalized, _mapUnixSecondsKeys);
+    final genericTimestamp = _mapInt(normalized, _mapTimestampKeys);
+    final rawDate = _mapRawValue(
+      normalized,
+      _mapDateKeys,
+      valueType: 'date value',
+    );
+
+    final timestampSourceCount = [
+      unixMicros,
+      unixMillis,
+      unixSeconds,
+      genericTimestamp,
+    ].whereType<int>().length;
+    if (timestampSourceCount > 1) {
+      throw ArgumentError.value(
+        normalized,
+        'source',
+        'Map must use exactly one timestamp source: '
+            'unixMicros/unixMillis/unix/timestamp.',
+      );
+    }
+
+    final hasTimestampSource = timestampSourceCount == 1;
+    final hasDateSource = rawDate != null;
+    final hasComponentSource = _containsAny(normalized, _mapComponentKeys);
+    if (hasTimestampSource && (hasDateSource || hasComponentSource)) {
+      throw ArgumentError.value(
+        normalized,
+        'source',
+        'Map cannot mix timestamp fields with date/component fields.',
+      );
+    }
+
+    if (unixMicros != null) {
+      return Hora.fromTimestamp(
+        unixMicros,
+        locale: locale,
+        utc: shouldUseUtc,
+        unit: UnixTimestampUnit.microseconds,
+      );
+    }
+
+    if (unixMillis != null) {
+      return Hora.fromTimestamp(
+        unixMillis,
+        locale: locale,
+        utc: shouldUseUtc,
+        unit: UnixTimestampUnit.milliseconds,
+      );
+    }
+
+    if (unixSeconds != null) {
+      return Hora.fromTimestamp(
+        unixSeconds,
+        locale: locale,
+        utc: shouldUseUtc,
+        unit: UnixTimestampUnit.seconds,
+      );
+    }
+
+    if (genericTimestamp != null) {
+      return Hora.fromTimestamp(
+        genericTimestamp,
+        locale: locale,
+        utc: shouldUseUtc,
+        unit: timestampUnit,
+      );
+    }
+
+    if (rawDate != null) {
+      final hasExplicitTimezone =
+          rawDate is String && _hasExplicitTimezone(rawDate);
+      final parsed = _parseDateSource(
+        rawDate,
+        locale: locale,
+        parseMode: parseMode,
+      );
+      if (!parsed.isValid) {
+        throw ArgumentError.value(
+          rawDate,
+          'date',
+          'Expected a valid and parseable date value.',
+        );
+      }
+
+      final yearOverride = _mapInt(normalized, _mapYearKeys);
+      final monthOverride = _mapInt(normalized, _mapMonthKeys);
+      final dayOverride = _mapInt(normalized, _mapDayKeys);
+      final hourOverride = _mapInt(normalized, _mapHourKeys);
+      final minuteOverride = _mapInt(normalized, _mapMinuteKeys);
+      final secondOverride = _mapInt(normalized, _mapSecondKeys);
+      final millisecondOverride = _mapInt(normalized, _mapMillisecondKeys);
+      final microsecondOverride = _mapInt(normalized, _mapMicrosecondKeys);
+
+      _validateTimeParts(
+        hour: hourOverride,
+        minute: minuteOverride,
+        second: secondOverride,
+        millisecond: millisecondOverride,
+        microsecond: microsecondOverride,
+      );
+      _validateDateParts(
+        year: yearOverride,
+        month: monthOverride,
+        day: dayOverride,
+        defaultYear: parsed.year,
+        defaultMonth: parsed.month,
+      );
+
+      final withDateOverrides = parsed.copyWith(
+        year: yearOverride,
+        month: monthOverride,
+        day: dayOverride,
+        hour: hourOverride,
+        minute: minuteOverride,
+        second: secondOverride,
+        millisecond: millisecondOverride,
+        microsecond: microsecondOverride,
+        locale: locale,
+      );
+      if (!shouldUseUtc) return withDateOverrides;
+
+      if (rawDate is DateTime || rawDate is Hora || hasExplicitTimezone) {
+        // Preserve the original instant when source already has timezone context.
+        return withDateOverrides.toUtc();
+      }
+      // Treat date-only or naive string inputs as UTC-local components.
+      return withDateOverrides.copyWith(utc: true);
+    }
+
+    final now = shouldUseUtc ? DateTime.now().toUtc() : DateTime.now();
+    final year = _mapInt(normalized, _mapYearKeys) ?? now.year;
+    final month = _mapInt(normalized, _mapMonthKeys) ?? 1;
+    final day = _mapInt(normalized, _mapDayKeys) ?? 1;
+    final hour = _mapInt(normalized, _mapHourKeys) ?? 0;
+    final minute = _mapInt(normalized, _mapMinuteKeys) ?? 0;
+    final second = _mapInt(normalized, _mapSecondKeys) ?? 0;
+    final millisecond = _mapInt(normalized, _mapMillisecondKeys) ?? 0;
+    final microsecond = _mapInt(normalized, _mapMicrosecondKeys) ?? 0;
+
+    _validateDateParts(
+      year: year,
+      month: month,
+      day: day,
+    );
+    _validateTimeParts(
+      hour: hour,
+      minute: minute,
+      second: second,
+      millisecond: millisecond,
+      microsecond: microsecond,
+    );
+
+    return Hora.of(
+      year: year,
+      month: month,
+      day: day,
+      hour: hour,
+      minute: minute,
+      second: second,
+      millisecond: millisecond,
+      microsecond: microsecond,
+      utc: shouldUseUtc,
+      locale: locale,
+    );
+  }
+
+  static Hora _parseDateSource(
+    Object rawDate, {
+    HoraLocale? locale,
+    HoraParseMode parseMode = HoraParseMode.smart,
+  }) =>
+      switch (rawDate) {
+        final Hora h => h,
+        final DateTime dt => Hora.fromDateTime(dt, locale: locale),
+        final String s => Hora.parse(s, locale: locale, mode: parseMode),
+        _ => throw ArgumentError.value(
+            rawDate,
+            'date',
+            'Expected a String, DateTime, or Hora value.',
+          ),
+      };
+
+  static bool _containsAny(Map<String, Object?> source, List<String> keys) =>
+      keys.any(source.containsKey);
+
+  static Map<String, Object?> _normalizeMap(Map<Object?, Object?> source) {
+    final normalized = <String, Object?>{};
+    final firstOriginalKey = <String, String>{};
+    for (final entry in source.entries) {
+      final key = entry.key;
+      if (key is! String) {
+        throw ArgumentError.value(
+          key,
+          'source',
+          'Map keys must be strings.',
+        );
+      }
+
+      final canonical = _canonicalKey(key);
+      if (!normalized.containsKey(canonical)) {
+        normalized[canonical] = entry.value;
+        firstOriginalKey[canonical] = key;
+        continue;
+      }
+
+      final existing = normalized[canonical];
+      if (!_canonicalValueEqual(canonical, existing, entry.value)) {
+        throw ArgumentError.value(
+          entry.value,
+          key,
+          'Conflicting values for key "$canonical" '
+          'from "${firstOriginalKey[canonical]}" and "$key".',
+        );
+      }
+    }
+    return normalized;
+  }
+
+  static void _validateSupportedMapKeys(Map<String, Object?> normalized) {
+    final unknownKeys = normalized.keys
+        .where((key) => !_supportedMapKeys.contains(key))
+        .toList()
+      ..sort();
+    if (unknownKeys.isEmpty) return;
+
+    throw ArgumentError.value(
+      normalized,
+      'source',
+      'Unsupported key(s): ${unknownKeys.join(', ')}.',
+    );
+  }
+
+  static const Set<String> _canonicalBoolKeys = {..._mapUtcKeys};
+  static const Set<String> _canonicalIntKeys = {
+    ..._mapYearKeys,
+    ..._mapMonthKeys,
+    ..._mapDayKeys,
+    ..._mapHourKeys,
+    ..._mapMinuteKeys,
+    ..._mapSecondKeys,
+    ..._mapMillisecondKeys,
+    ..._mapMicrosecondKeys,
+    ..._mapUnixMicrosKeys,
+    ..._mapUnixMillisKeys,
+    ..._mapUnixSecondsKeys,
+    ..._mapTimestampKeys,
+  };
+  static const Set<String> _canonicalDateKeys = {..._mapDateKeys};
+
+  static bool _canonicalValueEqual(
+    String canonicalKey,
+    Object? left,
+    Object? right,
+  ) {
+    if (identical(left, right)) return true;
+    if (left == null || right == null) return false;
+
+    if (_canonicalBoolKeys.contains(canonicalKey)) {
+      final leftBool = _toBool(left);
+      final rightBool = _toBool(right);
+      return leftBool != null && rightBool != null && leftBool == rightBool;
+    }
+
+    if (_canonicalIntKeys.contains(canonicalKey)) {
+      final leftInt = _toInt(left);
+      final rightInt = _toInt(right);
+      return leftInt != null && rightInt != null && leftInt == rightInt;
+    }
+
+    if (_canonicalDateKeys.contains(canonicalKey)) {
+      return _rawAliasValuesEqual(left, right);
+    }
+
+    return left == right;
+  }
+
+  static bool? _mapBool(Map<String, Object?> source, List<String> keys) {
+    var hasValue = false;
+    bool? resolved;
+    for (final key in keys) {
+      if (!source.containsKey(key)) continue;
+      final parsed = _toBool(source[key]);
+      if (parsed == null) {
+        throw ArgumentError.value(
+          source[key],
+          key,
+          'Expected a boolean value.',
+        );
+      }
+      if (hasValue && resolved != parsed) {
+        throw ArgumentError.value(
+          source[key],
+          key,
+          'Conflicting boolean values for alias keys ${keys.join(', ')}.',
+        );
+      }
+      hasValue = true;
+      resolved = parsed;
+    }
+    return hasValue ? resolved : null;
+  }
+
+  static int? _mapInt(Map<String, Object?> source, List<String> keys) {
+    var hasValue = false;
+    int? resolved;
+    for (final key in keys) {
+      if (!source.containsKey(key)) continue;
+      final parsed = _toInt(source[key]);
+      if (parsed == null) {
+        throw ArgumentError.value(
+          source[key],
+          key,
+          'Expected an integer value.',
+        );
+      }
+      if (hasValue && resolved != parsed) {
+        throw ArgumentError.value(
+          source[key],
+          key,
+          'Conflicting integer values for alias keys ${keys.join(', ')}.',
+        );
+      }
+      hasValue = true;
+      resolved = parsed;
+    }
+    return hasValue ? resolved : null;
+  }
+
+  static Object? _mapRawValue(
+    Map<String, Object?> source,
+    List<String> keys, {
+    required String valueType,
+  }) {
+    var hasValue = false;
+    Object? resolved;
+    for (final key in keys) {
+      if (!source.containsKey(key)) continue;
+      final value = source[key];
+      if (value == null) {
+        throw ArgumentError.value(
+          value,
+          key,
+          'Expected a non-null $valueType.',
+        );
+      }
+      if (hasValue && !_rawAliasValuesEqual(resolved!, value)) {
+        throw ArgumentError.value(
+          value,
+          key,
+          'Conflicting values for alias keys ${keys.join(', ')}.',
+        );
+      }
+      hasValue = true;
+      resolved = value;
+    }
+    return hasValue ? resolved : null;
+  }
+
+  static bool _rawAliasValuesEqual(Object left, Object right) {
+    if (left is String && right is String) {
+      if (left.trim() == right.trim()) return true;
+    }
+
+    if (left is Hora && right is Hora) {
+      if (!left.isValid || !right.isValid) {
+        return left.isValid == right.isValid;
+      }
+      return left.unixMicros == right.unixMicros;
+    }
+
+    final leftDateTime = _tryAsDateTime(left);
+    final rightDateTime = _tryAsDateTime(right);
+    if (leftDateTime != null && rightDateTime != null) {
+      return leftDateTime.isAtSameMomentAs(rightDateTime);
+    }
+
+    return left == right;
+  }
+
+  static DateTime? _tryAsDateTime(Object value) {
+    if (value is DateTime) return value;
+    if (value is Hora) return value.isValid ? value.toDateTime() : null;
+    if (value is String) {
+      final normalized = value.trim();
+      if (_hasInvalidIsoLikeComponents(normalized)) return null;
+      return DateTime.tryParse(normalized) ?? _tryParseFormats(normalized);
+    }
+    return null;
+  }
+
+  static void _validateDateParts({
+    int? year,
+    int? month,
+    int? day,
+    int? defaultYear,
+    int? defaultMonth,
+  }) {
+    if (month != null) _requireRange('month', month, 1, 12);
+
+    if (day != null) {
+      final resolvedYear = year ?? defaultYear ?? DateTime.now().year;
+      final resolvedMonth = month ?? defaultMonth ?? 1;
+      _requireRange('month', resolvedMonth, 1, 12);
+      final maxDay = DateTime(resolvedYear, resolvedMonth + 1, 0).day;
+      _requireRange('day', day, 1, maxDay);
+    }
+  }
+
+  static void _validateTimeParts({
+    int? hour,
+    int? minute,
+    int? second,
+    int? millisecond,
+    int? microsecond,
+  }) {
+    if (hour != null) _requireRange('hour', hour, 0, 23);
+    if (minute != null) _requireRange('minute', minute, 0, 59);
+    if (second != null) _requireRange('second', second, 0, 59);
+    if (millisecond != null) {
+      _requireRange('millisecond', millisecond, 0, 999);
+    }
+    if (microsecond != null) {
+      _requireRange('microsecond', microsecond, 0, 999);
+    }
+  }
+
+  static void _requireRange(String field, int value, int min, int max) {
+    if (value < min || value > max) {
+      throw ArgumentError.value(
+        value,
+        field,
+        'Expected value in range $min..$max.',
+      );
+    }
+  }
+
+  static int? _toInt(Object? value) {
+    if (value is int) return value;
+    if (value is num) {
+      if (value is double && !value.isFinite) return null;
+      final intValue = value.toInt();
+      if (value != intValue) return null;
+      return intValue;
+    }
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
+  static bool? _toBool(Object? value) {
+    if (value is bool) return value;
+    if (value is num) {
+      if (value is double && !value.isFinite) return null;
+      if (value == 1) return true;
+      if (value == 0) return false;
+      return null;
+    }
+    if (value is String) {
+      final normalized = value.trim().toLowerCase();
+      if (normalized == 'true' || normalized == '1') return true;
+      if (normalized == 'false' || normalized == '0') return false;
+    }
+    return null;
+  }
+
+  static String _canonicalKey(String key) =>
+      key.toLowerCase().replaceAll(RegExp('[^a-z0-9]'), '');
+
+  static bool _hasExplicitTimezone(String input) =>
+      RegExp(r'(z|[+-]\d{2}:?\d{2})$', caseSensitive: false)
+          .hasMatch(input.trim());
+
+  static bool _hasInvalidIsoLikeComponents(String input) {
+    final match = RegExp(
+      r'^(\d{4})-(\d{1,2})-(\d{1,2})'
+      r'(?:[Tt ](\d{1,2}):(\d{2})'
+      r'(?::(\d{2})(?:\.(\d{1,9}))?)?'
+      r'(?:([Zz])|([+-])(\d{2}):?(\d{2}))?'
+      r')?$',
+    ).firstMatch(input);
+
+    if (match == null) return false;
+
+    final year = int.parse(match.group(1)!);
+    final month = int.parse(match.group(2)!);
+    final day = int.parse(match.group(3)!);
+
+    if (month < 1 || month > 12 || day < 1) return true;
+    final maxDay = DateTime(year, month + 1, 0).day;
+    if (day > maxDay) return true;
+
+    final hourPart = match.group(4);
+    if (hourPart == null) return false;
+
+    final hour = int.parse(hourPart);
+    final minute = int.parse(match.group(5)!);
+    final secondPart = match.group(6);
+    final second = secondPart == null ? null : int.parse(secondPart);
+
+    if (hour < 0 || hour > 23) return true;
+    if (minute < 0 || minute > 59) return true;
+    if (second != null && (second < 0 || second > 59)) return true;
+
+    final offsetSign = match.group(9);
+    if (offsetSign == null) return false;
+
+    final offsetHours = int.parse(match.group(10)!);
+    final offsetMinutes = int.parse(match.group(11)!);
+    if (offsetHours < 0 || offsetHours > 23) return true;
+    if (offsetMinutes < 0 || offsetMinutes > 59) return true;
+    return false;
+  }
+
+  static DateTime? _tryParseFormats(String input) {
+    DateTime? buildValidatedDate(int year, int month, int day) {
+      final date = DateTime(year, month, day);
+      if (date.year != year || date.month != month || date.day != day) {
+        return null;
+      }
+      return date;
+    }
+
+    // YYYY/MM/DD or YYYY.MM.DD (year-first: unambiguous)
+    final yearFirst = RegExp(r'^(\d{4})[/.](\d{1,2})[/.](\d{1,2})$');
+    final m1 = yearFirst.firstMatch(input);
+    if (m1 != null) {
+      final year = int.parse(m1.group(1)!);
+      final month = int.parse(m1.group(2)!);
+      final day = int.parse(m1.group(3)!);
+      final parsed = buildValidatedDate(year, month, day);
+      if (parsed != null) return parsed;
+    }
+
+    // DD/MM/YYYY (day-first: first group must be ≤ 31)
+    final dayFirst = RegExp(r'^(\d{1,2})/(\d{1,2})/(\d{4})$');
+    final m2 = dayFirst.firstMatch(input);
+    if (m2 != null) {
+      final first = int.parse(m2.group(1)!);
+      final second = int.parse(m2.group(2)!);
+      final third = int.parse(m2.group(3)!);
+      if (first >= 1 && first <= 31 && second >= 1 && second <= 12) {
+        final parsed = buildValidatedDate(third, second, first);
+        if (parsed != null) return parsed;
       }
     }
 
@@ -932,18 +1959,27 @@ class HoraFormatter {
 
   static int _weekOfYear(Hora h) {
     final yearStart = h.locale.yearStart;
-    final startOfYear = DateTime(h.year, 1, yearStart);
+    final weekStart = h.locale.weekStart;
+    final startOfYear = DateTime.utc(h.year, 1, yearStart);
     final startOfWeek = startOfYear.subtract(
-      Duration(days: (startOfYear.weekday - h.locale.weekStart + 7) % 7),
+      Duration(days: (startOfYear.weekday - weekStart + 7) % 7),
     );
+    final currentDate = DateTime.utc(h.year, h.month, h.day);
 
-    if (h.dateTime.isBefore(startOfWeek)) {
-      // Belongs to previous year's last week
-      return Hora.of(year: h.year - 1, month: 12, day: 31, locale: h.locale)
-          .isoWeek;
+    if (currentDate.isBefore(startOfWeek)) {
+      // Belongs to previous year's last week — recurse with Dec 31.
+      return _weekOfYear(
+        Hora.of(
+          year: h.year - 1,
+          month: 12,
+          day: 31,
+          utc: true,
+          locale: h.locale,
+        ),
+      );
     }
 
-    final diff = h.dateTime.difference(startOfWeek).inDays;
+    final diff = currentDate.difference(startOfWeek).inDays;
     return (diff ~/ 7) + 1;
   }
 }
