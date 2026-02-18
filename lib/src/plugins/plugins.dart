@@ -29,5 +29,4 @@ export 'recurrence.dart';
 export 'relative_time.dart';
 export 'timezone.dart';
 export 'update_locale.dart';
-export 'week_of_year.dart';
-export 'week_year.dart';
+export 'week.dart';

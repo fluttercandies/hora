@@ -30,7 +30,7 @@
 /// - **recurrence** - Generate recurring date patterns
 /// - **relative_time** - Human-readable relative time
 /// - **timezone** - Timezone conversions
-/// - **week_of_year** - ISO and locale-aware week calculations
+/// - **week** - ISO, US, and locale-aware week calculations
 library;
 
 export 'src/plugins/plugins.dart';
